@@ -1,0 +1,46 @@
+# §3 Display & Rendering · §4 Art Style · §19 Particle System & Effects · §23 Graphics Classes
+
+## Display & Rendering
+
+| Decision | Value | Rationale |
+|---|---|---|
+| **Base tile size** | 32×32 px | Standard for 2D pixel art; power-of-two friendly. |
+| **Virtual resolution** | 960×540 | 30×16.875 tiles visible. Clean 2× integer scale to 1080p. |
+| **Scaling mode** | 2× integer scaling with letterbox | Pixel-perfect rendering; no sub-pixel blur. Fills 1080p exactly. |
+| **Map format** | Tiled `.tmx` with external `.tsx` tilesets | Editor-authored maps via MonoGame.Extended content pipeline. |
+| **Terrain variation** | Deterministic position-hash with weighted tile variants | Organic-looking grass distribution without per-tile authoring or runtime flicker. |
+| **Camera** | Camera2D producing a `Matrix` transform | All world-space drawing uses camera matrix in SpriteBatch.Begin(). |
+| **UI rendering pass** | Separate SpriteBatch without camera transform | Screen-space UI stays fixed regardless of camera position. |
+| **Y-sorting** | IYSortable interface | Entities sorted by Y position for correct depth ordering. |
+| **VSync** | *(TBD)* | Off for uncapped frames or on for tear-free. |
+| **Fixed timestep** | *(TBD)* | Off for variable delta unless physics requires it. |
+
+## Font Rendering
+
+| Decision | Value | Rationale |
+|---|---|---|
+
+*(No fonts selected yet. Add entries as font rendering decisions are made.)*
+
+## Art Style
+
+| Decision | Value | Rationale |
+|---|---|---|
+
+*(Art style to be defined. Add entries for perspective, frame sizes, palette choices, etc.)*
+
+## Particle System & Effects
+
+| Decision | Value | Rationale |
+|---|---|---|
+
+*(Add entries as particle and visual effect systems are built.)*
+
+## Graphics Classes
+
+| Class | Description |
+|---|---|
+| `Camera2D` | Produces a world-space view `Matrix` for `SpriteBatch`. Clamps position to map pixel bounds. |
+| `TiledWorldRenderer` | Wraps MonoGame.Extended tiled map loading and deterministic weighted tile-variant drawing. |
+
+*(Add entries as graphics classes are created — ScreenScaler, etc.)*

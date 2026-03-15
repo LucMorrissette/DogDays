@@ -10,6 +10,14 @@
 
 #-------------------------------- References --------------------------------#
 
+/reference:../pipeline-references/MonoGame.Extended.Content.Pipeline.dll
+
 
 #---------------------------------- Content ---------------------------------#
+
+#begin Maps/StarterMap.tmx
+/build:Maps/StarterMap.tmx
+
+#begin Tilesets/Terrain.tsx
+/build:Tilesets/Terrain.tsx
 

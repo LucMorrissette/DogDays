@@ -1,17 +1,28 @@
-﻿using Microsoft.Xna.Framework;
+﻿using System;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
+using RiverRats.Game.Input;
+using RiverRats.Game.Screens;
 
 namespace RiverRats.Game;
 
+/// <summary>
+/// Main game class. Owns the virtual-resolution pipeline and delegates all
+/// gameplay to the <see cref="ScreenManager"/>.
+/// </summary>
 public class Game1 : Microsoft.Xna.Framework.Game
 {
-    private GraphicsDeviceManager _graphics;
+    private const int VirtualWidth = 960;
+    private const int VirtualHeight = 540;
+    private const int StartupScale = 2;
+
+    private readonly GraphicsDeviceManager _graphics;
+    private readonly IInputManager _inputManager;
+    private readonly ScreenManager _screenManager;
+
     private SpriteBatch _spriteBatch;
-    private Texture2D _pixel;
-    private Vector2 _markerPosition;
-    private Vector2 _markerVelocity = new(180f, 120f);
-    private readonly Color _backgroundColor = new(18, 24, 38);
+    private RenderTarget2D _sceneRenderTarget;
+    private Rectangle _sceneDestination;
 
     public Game1()
     {
@@ -19,62 +30,89 @@ public class Game1 : Microsoft.Xna.Framework.Game
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
         Window.Title = "River Rats";
+        Window.ClientSizeChanged += OnClientSizeChanged;
 
-        _graphics.PreferredBackBufferWidth = 1280;
-        _graphics.PreferredBackBufferHeight = 720;
+        _inputManager = new InputManager();
+        _screenManager = new ScreenManager();
+
+        _graphics.PreferredBackBufferWidth = VirtualWidth * StartupScale;
+        _graphics.PreferredBackBufferHeight = VirtualHeight * StartupScale;
     }
 
     protected override void Initialize()
     {
-        _markerPosition = new Vector2(
-            _graphics.PreferredBackBufferWidth * 0.5f,
-            _graphics.PreferredBackBufferHeight * 0.5f);
-
+        RecalculateSceneDestination();
         base.Initialize();
     }
 
     protected override void LoadContent()
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
-        _pixel = new Texture2D(GraphicsDevice, 1, 1);
-        _pixel.SetData(new[] { Color.White });
+        _sceneRenderTarget = new RenderTarget2D(
+            GraphicsDevice,
+            VirtualWidth,
+            VirtualHeight,
+            false,
+            SurfaceFormat.Color,
+            DepthFormat.None,
+            0,
+            // PreserveContents required because the RT is switched away from and
+            // back to during multi-pass per-screen rendering.
+            RenderTargetUsage.PreserveContents);
+
+        var gameplayScreen = new GameplayScreen(
+            GraphicsDevice,
+            Content,
+            VirtualWidth,
+            VirtualHeight,
+            Exit);
+        _screenManager.Push(gameplayScreen);
     }
 
     protected override void Update(GameTime gameTime)
     {
-        if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
-            Exit();
-
-        var elapsedSeconds = (float)gameTime.ElapsedGameTime.TotalSeconds;
-        _markerPosition += _markerVelocity * elapsedSeconds;
-
-        var viewport = GraphicsDevice.Viewport;
-        const float markerSize = 64f;
-
-        if (_markerPosition.X <= 0 || _markerPosition.X >= viewport.Width - markerSize)
-        {
-            _markerVelocity.X *= -1;
-            _markerPosition.X = MathHelper.Clamp(_markerPosition.X, 0, viewport.Width - markerSize);
-        }
-
-        if (_markerPosition.Y <= 0 || _markerPosition.Y >= viewport.Height - markerSize)
-        {
-            _markerVelocity.Y *= -1;
-            _markerPosition.Y = MathHelper.Clamp(_markerPosition.Y, 0, viewport.Height - markerSize);
-        }
-
+        _inputManager.Update();
+        _screenManager.Update(gameTime, _inputManager);
         base.Update(gameTime);
     }
 
     protected override void Draw(GameTime gameTime)
     {
-        GraphicsDevice.Clear(_backgroundColor);
+        GraphicsDevice.SetRenderTarget(_sceneRenderTarget);
+        GraphicsDevice.Clear(Color.Black);
 
-        _spriteBatch.Begin();
-        _spriteBatch.Draw(_pixel, new Rectangle((int)_markerPosition.X, (int)_markerPosition.Y, 64, 64), Color.CadetBlue);
-        _spriteBatch.Draw(_pixel, new Rectangle(0, GraphicsDevice.Viewport.Height - 96, GraphicsDevice.Viewport.Width, 96), new Color(29, 78, 137));
+        _screenManager.Draw(gameTime, _spriteBatch);
+
+        GraphicsDevice.SetRenderTarget(null);
+        GraphicsDevice.Clear(Color.Black);
+
+        _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+        _spriteBatch.Draw(_sceneRenderTarget, _sceneDestination, Color.White);
         _spriteBatch.End();
 
         base.Draw(gameTime);
+    }
+
+    private void RecalculateSceneDestination()
+    {
+        var viewport = GraphicsDevice.Viewport;
+        var scaleX = viewport.Width / VirtualWidth;
+        var scaleY = viewport.Height / VirtualHeight;
+        var scale = Math.Max(1, Math.Min(scaleX, scaleY));
+
+        var scaledWidth = VirtualWidth * scale;
+        var scaledHeight = VirtualHeight * scale;
+        var offsetX = (viewport.Width - scaledWidth) / 2;
+        var offsetY = (viewport.Height - scaledHeight) / 2;
+
+        _sceneDestination = new Rectangle(offsetX, offsetY, scaledWidth, scaledHeight);
+    }
+
+    private void OnClientSizeChanged(object sender, EventArgs e)
+    {
+        if (GraphicsDevice is not null)
+        {
+            RecalculateSceneDestination();
+        }
     }
 }

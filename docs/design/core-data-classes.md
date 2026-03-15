@@ -1,0 +1,40 @@
+# §21 Core Classes · §22 Data Classes · §24 Utility Classes
+
+## Core Classes
+
+| Class | Location | Description |
+|---|---|---|
+| `IInputManager` | `Input/` | Action-based input contract (held/pressed/released) used by gameplay and screens. |
+| `IKeyboardStateSource` | `Input/` | Keyboard state provider abstraction that enables deterministic tests. |
+| `InputManager` | `Input/` | Keyboard-backed implementation of `IInputManager` with default bindings and rebind support. |
+| `EmptyInputManager` | `Input/` | Null-object implementation for states/screens that intentionally ignore input. |
+| `KeyboardStateSource` | `Input/` | Production keyboard source that wraps `Keyboard.GetState()`. |
+
+| `IGameScreen` | `Screens/` | Screen lifecycle contract (load, update, draw, unload, transparency). |
+| `ScreenManager` | `Screens/` | Stack-based screen host. Push/pop/replace semantics with deferred mutation during update. |
+
+*(Add entries as core classes are created — GameEvents, Direction, IMapCollisionData, etc.)*
+
+<!-- Example format:
+| `GameEvents` | `Core/` | Static event hub for global events. |
+| `Direction` | `Core/` | Enum for cardinal directions. |
+-->
+
+## Data Classes
+
+| Class | Location | Description |
+|---|---|---|
+| `InputAction` | `Input/` | Enum of logical gameplay actions that key bindings map to. |
+
+*(Add entries as data classes are created — configs, enums, save DTOs, etc.)*
+
+<!-- Example format:
+| `SaveGameData` | `Data/Save/` | Root save game data model. |
+-->
+
+## Utility Classes
+
+| Class | Description |
+|---|---|
+
+*(Add entries as utility classes are created — MathUtils, TextHelper, etc.)*
