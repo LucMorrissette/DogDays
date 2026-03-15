@@ -1,0 +1,25 @@
+# Build output
+bin/
+obj/
+out/
+artifacts/
+
+# User-specific files
+*.user
+*.suo
+*.userprefs
+*.rsuser
+
+# MonoGame / content pipeline
+*.mgcontent
+*.mgspritefontcache
+*.mgc
+
+# VS Code / Visual Studio
+.vs/
+.vscode/*.user
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store

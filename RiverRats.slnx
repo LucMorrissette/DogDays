@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RiverRats.Game/RiverRats.Game.csproj" />
+  </Folder>
+</Solution>

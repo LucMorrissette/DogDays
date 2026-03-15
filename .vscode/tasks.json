@@ -1,0 +1,28 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build RiverRats",
+			"type": "shell",
+			"command": "powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Set-Location 'C:\\Users\\Luc\\git\\RiverRats'; dotnet build RiverRats.slnx"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Run RiverRats",
+			"type": "shell",
+			"command": "powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Set-Location 'C:\\Users\\Luc\\git\\RiverRats'; dotnet run --project src/RiverRats.Game/RiverRats.Game.csproj"
+			],
+			"isBackground": false
+		}
+	]
+}
