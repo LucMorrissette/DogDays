@@ -40,6 +40,34 @@ public class PlayerBlockObstacleCollisionTests
         Assert.False(player.FootBounds.Intersects(obstacleBounds));
     }
 
+    [Fact]
+    public void Update__MovingIntoSubTileColliderBound__StopsBeforeOverlap()
+    {
+        var input = new FakeInputManager();
+        var player = new PlayerBlock(
+            startPosition: new Vector2(50f, 100f),
+            size: new Point(32, 32),
+            moveSpeedPixelsPerSecond: 120f,
+            worldBounds: new Rectangle(0, 0, 1024, 640));
+        var colliderBound = new Rectangle(100, 100, 30, 20);
+        var collisionMap = new WorldCollisionMap(
+            new NoCollisionData(),
+            new[]
+            {
+                colliderBound
+            });
+
+        input.Press(InputAction.MoveRight);
+
+        for (var i = 0; i < 10; i++)
+        {
+            player.Update(FakeGameTime.OneFrame(), input, collisionMap);
+            input.Update();
+        }
+
+        Assert.False(player.FootBounds.Intersects(colliderBound));
+    }
+
     private sealed class NoCollisionData : IMapCollisionData
     {
         public bool IsWorldRectangleBlocked(Rectangle worldBounds)

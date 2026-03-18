@@ -144,7 +144,7 @@ public sealed class GameplayScreen : IGameScreen
         _docks = CreateDocks(_dockTexture, _worldRenderer.PropPlacements);
         _sunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: false);
         _underwaterSunkenLogs = CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: true);
-        _collisionMap = new WorldCollisionMap(_worldRenderer, GetBoulderBounds(_boulders), GetDockBounds(_docks));
+        _collisionMap = new WorldCollisionMap(_worldRenderer, MergeObstacleBounds(GetBoulderBounds(_boulders), _worldRenderer.ColliderBounds), GetDockBounds(_docks));
         _camera.LookAt(_player.Center);
 
         _dayNightCycle = new DayNightCycle(
@@ -508,6 +508,23 @@ public sealed class GameplayScreen : IGameScreen
         return props.ToArray();
     }
 
+    private static Rectangle[] MergeObstacleBounds(Rectangle[] boulderBounds, IReadOnlyList<Rectangle> colliderBounds)
+    {
+        if (colliderBounds.Count == 0)
+        {
+            return boulderBounds;
+        }
+
+        var merged = new Rectangle[boulderBounds.Length + colliderBounds.Count];
+        boulderBounds.CopyTo(merged, 0);
+        for (var i = 0; i < colliderBounds.Count; i++)
+        {
+            merged[boulderBounds.Length + i] = colliderBounds[i];
+        }
+
+        return merged;
+    }
+
     private void UpdateRipples(GameTime gameTime, IInputManager input)
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -524,7 +541,7 @@ public sealed class GameplayScreen : IGameScreen
             }
         }
 
-        if (input.IsMouseLeftPressed() && _rippleCount < MaxRipples)
+        if (input.IsMouseLeftReleased() && _rippleCount < MaxRipples)
         {
             var virtualPos = PhysicalToVirtualMousePosition(input.GetMousePosition());
             var worldPos = _camera.ScreenToWorld(virtualPos);
@@ -536,16 +553,31 @@ public sealed class GameplayScreen : IGameScreen
 
     private void SetRippleShaderParameters()
     {
-        // Convert world positions to screen UV space for the shader.
-        for (var i = 0; i < _rippleCount; i++)
+        // Build per-slot shader data: active ripples get their real age, inactive
+        // slots get age = -1 so the shader's step(0, age) masks them out.
+        for (var i = 0; i < MaxRipples; i++)
         {
-            var screenX = (_rippleWorldPositions[i].X - _camera.Position.X) / _virtualWidth + 0.5f;
-            var screenY = (_rippleWorldPositions[i].Y - _camera.Position.Y) / _virtualHeight + 0.5f;
-            _rippleShaderData[i] = new Vector3(screenX, screenY, _rippleAges[i]);
+            if (i < _rippleCount)
+            {
+                var screenX = (_rippleWorldPositions[i].X - _camera.Position.X) / _virtualWidth + 0.5f;
+                var screenY = (_rippleWorldPositions[i].Y - _camera.Position.Y) / _virtualHeight + 0.5f;
+                _rippleShaderData[i] = new Vector3(screenX, screenY, _rippleAges[i]);
+            }
+            else
+            {
+                _rippleShaderData[i] = new Vector3(0f, 0f, -1f); // inactive
+            }
         }
 
-        _waterDistortionEffect.Parameters["Ripples"].SetValue(_rippleShaderData);
-        _waterDistortionEffect.Parameters["RippleCount"].SetValue(_rippleCount);
+        // MojoShader (DesktopGL) does not support float3 arrays; use individual params.
+        _waterDistortionEffect.Parameters["Ripple0"].SetValue(_rippleShaderData[0]);
+        _waterDistortionEffect.Parameters["Ripple1"].SetValue(_rippleShaderData[1]);
+        _waterDistortionEffect.Parameters["Ripple2"].SetValue(_rippleShaderData[2]);
+        _waterDistortionEffect.Parameters["Ripple3"].SetValue(_rippleShaderData[3]);
+        _waterDistortionEffect.Parameters["Ripple4"].SetValue(_rippleShaderData[4]);
+        _waterDistortionEffect.Parameters["Ripple5"].SetValue(_rippleShaderData[5]);
+        _waterDistortionEffect.Parameters["Ripple6"].SetValue(_rippleShaderData[6]);
+        _waterDistortionEffect.Parameters["Ripple7"].SetValue(_rippleShaderData[7]);
     }
 
     private Vector2 PhysicalToVirtualMousePosition(Point physicalPosition)

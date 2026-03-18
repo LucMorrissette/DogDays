@@ -38,5 +38,8 @@ public sealed class EmptyInputManager : IInputManager
     public bool IsMouseLeftPressed() => false;
 
     /// <inheritdoc />
+    public bool IsMouseLeftReleased() => false;
+
+    /// <inheritdoc />
     public Point GetMousePosition() => Point.Zero;
 }

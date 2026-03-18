@@ -120,6 +120,13 @@ public sealed class InputManager : IInputManager
     }
 
     /// <inheritdoc />
+    public bool IsMouseLeftReleased()
+    {
+        return _currentMouseState.LeftButton == ButtonState.Released
+            && _previousMouseState.LeftButton == ButtonState.Pressed;
+    }
+
+    /// <inheritdoc />
     public Point GetMousePosition()
     {
         return _currentMouseState.Position;

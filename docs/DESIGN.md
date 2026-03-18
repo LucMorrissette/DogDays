@@ -20,6 +20,7 @@ Living source of truth for the RiverRats project's architecture, design decision
 | **Static world obstacles** | TMX object-layer prop placements spawn screen-owned entities that feed `WorldCollisionMap` | Keeps terrain collision and placed solid props under one movement query contract. |
 | **Static prop rendering** | TMX object-layer placements support both collidable and decorative prop sprites | Keeps world decoration editor-driven without coupling visuals to collision rules. |
 | **Walkable prop surfaces** | Prop bounds can override blocked terrain beneath them | Supports authored surfaces like docks or bridges without hand-editing collision mask tiles. |
+| **Object-layer colliders** | TMX `Colliders` object layer provides sub-tile collision rectangles merged into `WorldCollisionMap` | Enables precise collision geometry for props and barriers without being constrained to tile-grid granularity. |
 
 ---
 

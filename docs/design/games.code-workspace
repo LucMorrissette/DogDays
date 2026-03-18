@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../trashsquatch"
+		}
+	],
+	"settings": {
+		"terminal.integrated.defaultProfile.windows": "PowerShell",
+		"terminal.integrated.defaultProfile.linux": "PowerShell",
+		"workbench.colorCustomizations": {
+			"titleBar.activeBackground": "#b75500",
+			"titleBar.activeForeground": "#ffffff",
+			"statusBar.background": "#b75500",
+			"statusBar.foreground": "#ffffff"
+		}
+	}
+}

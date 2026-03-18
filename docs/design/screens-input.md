@@ -20,6 +20,7 @@
 | **Screenshot hotkey** | `InputAction.CopyScreenshotToClipboard` bound to `P` | Keeps screenshot capture inside the same action-based input layer as gameplay/debug actions. |
 | **Null-object pattern** | `EmptyInputManager` | For screens or states that don't process input. |
 | **Keyboard source abstraction** | `IKeyboardStateSource` | Decouples MonoGame hardware calls from input logic for deterministic unit testing. |
+| **macOS fast-click detection** | Use `IsMouseLeftReleased()` (release edge) instead of `IsMouseLeftPressed()` (press edge) | On macOS/SDL2, fast clicks (press + release in ~30–80ms) complete between 60 FPS polls (~16ms/frame), missing the `Pressed` state entirely. The release edge is always captured because the button must be held ≥1 frame before releasing. See `[Obsolete]` marker on `IsMouseLeftPressed()`. |
 
 ## IInputManager API
 
@@ -29,3 +30,6 @@
 | `IsHeld(action)` | `bool` | `true` while any key bound to the action is down. |
 | `IsPressed(action)` | `bool` | `true` only on the frame a bound key transitions up -> down. |
 | `IsReleased(action)` | `bool` | `true` only on the frame a bound key transitions down -> up. |
+| `IsMouseLeftPressed()` | `bool` | **[Obsolete]** `true` only on the frame left button transitions Released → Pressed. Unreliable for fast clicks on macOS; use `IsMouseLeftReleased()` instead. |
+| `IsMouseLeftReleased()` | `bool` | `true` only on the frame left button transitions Pressed → Released. Reliable for fast clicks on macOS because the button must be held ≥1 frame. |
+| `GetMousePosition()` | `Point` | Current mouse cursor position in physical window client coordinates. |

@@ -1,10 +1,9 @@
 //
 // WaterDistortion.fx — Multi-layer sine-wave UV distortion for water tiles,
 // with interactive click-ripple support.
-// Compiled by MonoGame Content Pipeline (WindowsDX, Reach profile).
+// Compiled by MonoGame Content Pipeline (DesktopGL, Reach profile).
+// MojoShader-compatible: no dynamic loops, manually unrolled ripple accumulation.
 //
-
-#define MAX_RIPPLES 8
 
 // The scene texture containing water tiles already rendered.
 sampler TextureSampler : register(s0);
@@ -17,19 +16,50 @@ float Speed;
 float2 CameraOffset;
 
 // --- Click-ripple parameters ---
-// Each element: xy = ripple centre in screen UV (texCoord) space, z = age in seconds.
-float3 Ripples[MAX_RIPPLES];
-int RippleCount;
+// Each element: xy = ripple centre in screen UV space, z = age in seconds.
+// Age < 0 means inactive (masked out with a step() so no branching needed).
+float3 Ripple0;
+float3 Ripple1;
+float3 Ripple2;
+float3 Ripple3;
+float3 Ripple4;
+float3 Ripple5;
+float3 Ripple6;
+float3 Ripple7;
 float RippleAmplitude;  // UV displacement strength (~0.005).
 float RippleFrequency;  // Tightness of concentric rings (~40).
 float RippleSpeed;      // How fast rings expand outward (~15).
 float AspectRatio;      // VirtualWidth / VirtualHeight, keeps rings circular.
 
-float4 MainPS(float4 position : SV_Position, float4 color : COLOR0, float2 texCoord : TEXCOORD0) : COLOR0
+// Accumulate displacement from a single ripple (no branching).
+float2 RippleOffset(float3 ripple, float2 texCoord)
+{
+    float2 center = ripple.xy;
+    float age = ripple.z;
+
+    // step(0, age) = 1 when active (age >= 0), 0 when inactive (age < 0).
+    float active = step(0.0, age);
+
+    float2 diff = texCoord - center;
+    diff.x *= AspectRatio;
+    float dist = length(diff) + 0.0001; // avoid div-by-zero
+
+    float radius = age * RippleSpeed * 0.01;
+    float ringDist = dist - radius;
+    float ring = exp(-ringDist * ringDist * RippleFrequency * RippleFrequency);
+
+    float timeFade = saturate(1.0 - age * 0.5);
+
+    float2 dir = diff / dist;
+    dir.x /= AspectRatio;
+
+    return dir * ring * timeFade * RippleAmplitude * active;
+}
+
+float4 MainPS(float2 texCoord : TEXCOORD0, float4 color : COLOR0) : COLOR0
 {
     float t = Time * Speed;
 
-    // Shift UVs by camera offset so the wave pattern is locked to world space.
     float2 worldUV = texCoord + CameraOffset;
 
     // Layer 1: broad, slow sway.
@@ -43,33 +73,15 @@ float4 MainPS(float4 position : SV_Position, float4 color : COLOR0, float2 texCo
 
     float2 offset = float2(wave1X + wave2X, wave1Y);
 
-    // --- Click ripples ---
-    for (int i = 0; i < RippleCount; i++)
-    {
-        float2 center = Ripples[i].xy;
-        float age = Ripples[i].z;
-
-        // Aspect-corrected distance so ripples are circular on screen.
-        float2 diff = texCoord - center;
-        diff.x *= AspectRatio;
-        float dist = length(diff);
-
-        // Single ring pulse expanding outward (no oscillation).
-        float radius = age * RippleSpeed * 0.01;
-        float ringDist = dist - radius;
-        // Narrow Gaussian centred on the expanding ring edge.
-        float ring = exp(-ringDist * ringDist * RippleFrequency * RippleFrequency);
-
-        // Fade with time.
-        float timeFade = saturate(1.0 - age * 0.5);
-
-        // Radial displacement direction (safe normalize).
-        float2 dir = dist > 0.001 ? diff / dist : float2(0, 0);
-        // Convert back from aspect-corrected space to texCoord space.
-        dir.x /= AspectRatio;
-
-        offset += dir * ring * timeFade * RippleAmplitude;
-    }
+    // Manually unrolled ripple accumulation (MojoShader requires static loops).
+    offset += RippleOffset(Ripple0, texCoord);
+    offset += RippleOffset(Ripple1, texCoord);
+    offset += RippleOffset(Ripple2, texCoord);
+    offset += RippleOffset(Ripple3, texCoord);
+    offset += RippleOffset(Ripple4, texCoord);
+    offset += RippleOffset(Ripple5, texCoord);
+    offset += RippleOffset(Ripple6, texCoord);
+    offset += RippleOffset(Ripple7, texCoord);
 
     float2 distortedCoord = texCoord + offset;
 
@@ -80,6 +92,6 @@ technique WaterDistortion
 {
     pass P0
     {
-        PixelShader = compile ps_4_0 MainPS();
+        PixelShader = compile ps_3_0 MainPS();
     }
 }

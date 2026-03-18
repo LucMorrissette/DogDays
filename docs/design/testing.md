@@ -33,5 +33,7 @@
 | `Unit/Camera2DTests.cs` | Initial position, LookAt clamping (all four edges), map-smaller-than-viewport locking, GetViewMatrix translation. |
 | `Unit/InputManagerTests.cs` | Action press/release/hold transitions, secondary key bindings, and rebind behavior. |
 | `Unit/PlayerBlockTests.cs` | Delta-time movement distance, diagonal normalization, world-bounds clamping, and center-point math. |
+| `Unit/WorldCollisionMapTests.cs` | Collision boundary aggregation, obstacle addition, and walk-over suppression rules. |
 | `Integration/PlayerBlockMovementTests.cs` | Multi-frame held input movement accumulation and release-to-stop behavior with scripted input. |
+| `Integration/PlayerBlockObstacleCollisionTests.cs` | Multi-axis separation and sliding behavior against placed static obstacles in the world. |
 | `Unit/ScreenManagerTests.cs` | Push/pop/replace lifecycle, update routing (topmost only), draw ordering/transparency, deferred mutation during update, empty-stack safety. |

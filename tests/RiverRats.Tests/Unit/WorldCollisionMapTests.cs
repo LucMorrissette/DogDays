@@ -92,6 +92,53 @@ public class WorldCollisionMapTests
         Assert.True(blocked);
     }
 
+    [Fact]
+    public void IsWorldRectangleBlocked_ReturnsTrueWhenOverlappingColliderBound()
+    {
+        var collisionMap = new WorldCollisionMap(
+            new NoCollisionData(),
+            new[]
+            {
+                new Rectangle(100, 100, 50, 20)
+            });
+
+        var blocked = collisionMap.IsWorldRectangleBlocked(new Rectangle(120, 110, 16, 16));
+
+        Assert.True(blocked);
+    }
+
+    [Fact]
+    public void IsWorldRectangleBlocked_ReturnsFalseWhenNotOverlappingColliderBound()
+    {
+        var collisionMap = new WorldCollisionMap(
+            new NoCollisionData(),
+            new[]
+            {
+                new Rectangle(100, 100, 50, 20)
+            });
+
+        var blocked = collisionMap.IsWorldRectangleBlocked(new Rectangle(200, 200, 16, 16));
+
+        Assert.False(blocked);
+    }
+
+    [Fact]
+    public void IsWorldRectangleBlocked_ReturnsTrueWhenOverlappingAnyOfMultipleColliderBounds()
+    {
+        var collisionMap = new WorldCollisionMap(
+            new NoCollisionData(),
+            new[]
+            {
+                new Rectangle(50, 50, 30, 30),
+                new Rectangle(150, 150, 40, 40),
+                new Rectangle(300, 200, 25, 25)
+            });
+
+        var blocked = collisionMap.IsWorldRectangleBlocked(new Rectangle(160, 160, 16, 16));
+
+        Assert.True(blocked);
+    }
+
     private sealed class NoCollisionData : IMapCollisionData
     {
         public bool IsWorldRectangleBlocked(Rectangle worldBounds)

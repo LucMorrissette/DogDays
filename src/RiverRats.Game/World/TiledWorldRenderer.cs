@@ -22,6 +22,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     private const string WaterSurfaceLayerName = "Water/surface";
     private const string PropTypePropertyName = "propType";
     private const string IsUnderwaterPropertyName = "isUnderwater";
+    private const string ColliderLayerName = "Colliders";
     private const uint TiledHorizontalFlipFlag = 0x80000000;
     private const uint TiledVerticalFlipFlag = 0x40000000;
     private const uint TiledDiagonalFlipFlag = 0x20000000;
@@ -45,6 +46,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     private readonly int[] _shorelineVariantIndexByTile;
     private readonly Dictionary<int, TerrainTileInfo> _terrainTiles;
     private readonly MapPropPlacement[] _propPlacements;
+    private readonly Rectangle[] _colliderBounds;
     private float _waterElapsedSeconds;
 
     /// <summary>Total map width in pixels (tile columns × tile pixel width).</summary>
@@ -63,6 +65,11 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     /// Prop instances placed through TMX object layers.
     /// </summary>
     public IReadOnlyList<MapPropPlacement> PropPlacements => _propPlacements;
+
+    /// <summary>
+    /// World-space collision rectangles authored in the TMX Colliders object layer.
+    /// </summary>
+    public IReadOnlyList<Rectangle> ColliderBounds => _colliderBounds;
 
     /// <summary>
     /// Initializes a world renderer from a tiled map asset in the content pipeline.
@@ -97,6 +104,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
 
         var propMetadataByGlobalIdentifier = LoadPropMetadataByGlobalIdentifier(mapElement, mapDirectory);
         _propPlacements = LoadPropPlacements(mapElement, propMetadataByGlobalIdentifier);
+        _colliderBounds = LoadColliderBounds(mapElement);
 
         var layers = new List<MapLayer>();
         foreach (var layerElement in mapElement.Elements("layer"))
@@ -489,6 +497,42 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         }
 
         return props.ToArray();
+    }
+
+    private static Rectangle[] LoadColliderBounds(XElement mapElement)
+    {
+        foreach (var objectGroupElement in mapElement.Elements("objectgroup"))
+        {
+            var groupName = objectGroupElement.Attribute("name")?.Value;
+            if (!string.Equals(groupName, ColliderLayerName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var rects = new List<Rectangle>();
+            foreach (var objectElement in objectGroupElement.Elements("object"))
+            {
+                if (objectElement.Attribute("gid") is not null)
+                {
+                    continue;
+                }
+
+                var x = float.Parse(GetRequiredStringAttribute(objectElement, "x"), CultureInfo.InvariantCulture);
+                var y = float.Parse(GetRequiredStringAttribute(objectElement, "y"), CultureInfo.InvariantCulture);
+                var width = float.Parse(GetRequiredStringAttribute(objectElement, "width"), CultureInfo.InvariantCulture);
+                var height = float.Parse(GetRequiredStringAttribute(objectElement, "height"), CultureInfo.InvariantCulture);
+
+                rects.Add(new Rectangle(
+                    (int)MathF.Round(x),
+                    (int)MathF.Round(y),
+                    (int)MathF.Round(width),
+                    (int)MathF.Round(height)));
+            }
+
+            return rects.ToArray();
+        }
+
+        return Array.Empty<Rectangle>();
     }
 
     private static TerrainTilesetData LoadTerrainTiles(string tilesetPath, ContentManager content)

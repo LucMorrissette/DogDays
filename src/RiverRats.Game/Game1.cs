@@ -1,11 +1,13 @@
 ﻿using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using RiverRats.Game.Input;
+using RiverRats.Game.Screens;
+#if WINDOWS
 using System.Threading;
 using Clipboard = System.Windows.Forms.Clipboard;
 using DrawingBitmap = System.Drawing.Bitmap;
-using RiverRats.Game.Input;
-using RiverRats.Game.Screens;
+#endif
 
 namespace RiverRats.Game;
 
@@ -27,7 +29,9 @@ public class Game1 : Microsoft.Xna.Framework.Game
     private RenderTarget2D _sceneRenderTarget;
     private Rectangle _sceneDestination;
     private bool _copyScreenshotRequested;
+#if WINDOWS
     private Color[] _screenshotBuffer;
+#endif
 
     public Game1()
     {
@@ -38,8 +42,8 @@ public class Game1 : Microsoft.Xna.Framework.Game
         Window.Title = "River Rats";
         Window.ClientSizeChanged += OnClientSizeChanged;
 
-        // HiDef unlocks ps_4_0 shaders (needed for water ripple loop).
-        _graphics.GraphicsProfile = GraphicsProfile.HiDef;
+        // Reach profile is compatible with DesktopGL / macOS / Linux.
+        _graphics.GraphicsProfile = GraphicsProfile.Reach;
 
         _inputManager = new InputManager();
         _screenManager = new ScreenManager();
@@ -115,6 +119,7 @@ public class Game1 : Microsoft.Xna.Framework.Game
 
     private void CopySceneRenderTargetToClipboard()
     {
+#if WINDOWS
         if (_sceneRenderTarget is null)
         {
             return;
@@ -144,6 +149,7 @@ public class Game1 : Microsoft.Xna.Framework.Game
         clipboardThread.SetApartmentState(ApartmentState.STA);
         clipboardThread.Start();
         clipboardThread.Join();
+#endif
     }
 
     private void RecalculateSceneDestination()

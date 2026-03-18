@@ -5,7 +5,7 @@
 | Class | Description |
 |---|---|
 | `IMapCollisionData` | World collision query contract for blocked-tile checks using world-space rectangles. |
-| `TiledWorldRenderer` | TMX/TSX-backed world renderer that draws ordered tile layers, routes `Water/*` layers through the water pass, aggregates tile-property collision across all layers, and exposes TMX object-layer prop placements. |
+| `TiledWorldRenderer` | TMX/TSX-backed world renderer that draws ordered tile layers, routes `Water/*` layers through the water pass, aggregates tile-property collision across all layers, and exposes TMX object-layer prop placements. Exposes a `ColliderBounds` property and `LoadColliderBounds()` method to parse pure geometric rectangles (objects without a `gid`) from a `"Colliders"` object layer as world-space rectangles. |
 | `WorldCollisionMap` | Collision aggregator that combines terrain blockers with additional placed obstacle bounds. |
 
 *(Add entries as world/tilemap classes are created — TileMap, TileMapRenderer, etc.)*
