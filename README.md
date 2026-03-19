@@ -4,6 +4,8 @@ A 2D top-down exploration game built with MonoGame — outdoor adventure set alo
 
 ![Screenshot placeholder](reference_assets/River%20Rats%202026-03-17%2019.40.44.png)
 
+![Gameplay GIF](reference_assets/heyoooooo.gif)
+
 ## Controls
 
 | Action | Keys |
