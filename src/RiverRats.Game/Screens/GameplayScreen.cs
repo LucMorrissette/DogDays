@@ -120,6 +120,8 @@ public sealed class GameplayScreen : IGameScreen
     private LightData[] _fireLightData = Array.Empty<LightData>();
     private LightData[] _combinedLightData = Array.Empty<LightData>();
     private FireflyManager _fireflyManager;
+    private OcclusionRevealRenderer _occlusionRevealRenderer;
+    private bool _isPlayerOccluded;
     private bool _showCollisionBounds;
     private readonly Vector2[] _rippleWorldPositions = new Vector2[MaxRipples];
     private readonly float[] _rippleAges = new float[MaxRipples];
@@ -292,6 +294,9 @@ public sealed class GameplayScreen : IGameScreen
         _fireflyManager = new FireflyManager();
         _combinedLightData = new LightData[_firepits.Length + 32];
 
+        _occlusionRevealRenderer = new OcclusionRevealRenderer(_graphicsDevice, _virtualWidth, _virtualHeight);
+        _occlusionRevealRenderer.LoadContent(_content);
+
         _musicManager.LoadContent(_content);
         _musicManager.PlaySong("GameplayTheme", loopDelaySeconds: 5f);
     }
@@ -324,6 +329,7 @@ public sealed class GameplayScreen : IGameScreen
         _followerAnimator.Direction = _follower.Facing;
         _followerAnimator.Update(gameTime, _follower.IsMoving);
         _camera.LookAt(_player.Center);
+        _isPlayerOccluded = CheckPlayerOcclusion();
         _worldRenderer.Update(gameTime);
         _dayNightCycle.Update(gameTime);
         var activeFireLightCount = 0;
@@ -474,55 +480,58 @@ public sealed class GameplayScreen : IGameScreen
         // FrontToBack: layerDepth 0 = drawn first (behind), 1 = drawn last (in front).
         // Each entity's depth is its bottom Y / map height so lower-on-screen = in front.
         var mapHeight = (float)_worldRenderer.MapPixelHeight;
-        _worldSpriteBatch.Begin(
-            sortMode: SpriteSortMode.FrontToBack,
-            blendState: BlendState.AlphaBlend,
-            samplerState: SamplerState.PointClamp,
-            transformMatrix: worldMatrix);
-        for (var i = 0; i < _boulders.Length; i++)
-        {
-            _boulders[i].Draw(_worldSpriteBatch, _boulders[i].Bounds.Bottom / mapHeight);
-        }
+        var playerDepth = _player.Bounds.Bottom / mapHeight;
 
-        for (var i = 0; i < _docks.Length; i++)
+        if (_isPlayerOccluded)
         {
-            _docks[i].Draw(_worldSpriteBatch);
-        }
+            // --- Pass 4a: Entities behind/at player depth + player + follower ---
+            _worldSpriteBatch.Begin(
+                sortMode: SpriteSortMode.FrontToBack,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp,
+                transformMatrix: worldMatrix);
+            DrawWorldEntities(mapHeight, playerDepth, EntityDepthFilter.BehindOrAtPlayer);
+            _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, _follower.Bounds.Bottom / mapHeight);
+            _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, playerDepth);
+            if (_showCollisionBounds)
+            {
+                DrawCollisionBounds();
+            }
+            _worldSpriteBatch.End();
 
-        for (var i = 0; i < _sunkenLogs.Length; i++)
-        {
-            _sunkenLogs[i].Draw(_worldSpriteBatch, _sunkenLogs[i].Bounds.Bottom / mapHeight);
-        }
+            // --- Pass 4b: Entities in front of player → occluder render target ---
+            _occlusionRevealRenderer.BeginCapture();
+            _worldSpriteBatch.Begin(
+                sortMode: SpriteSortMode.FrontToBack,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp,
+                transformMatrix: worldMatrix);
+            DrawWorldEntities(mapHeight, playerDepth, EntityDepthFilter.InFrontOfPlayer);
+            _worldSpriteBatch.End();
 
-        for (var i = 0; i < _sunkenChests.Length; i++)
-        {
-            _sunkenChests[i].Draw(_worldSpriteBatch, _sunkenChests[i].Bounds.Bottom / mapHeight);
+            // --- Pass 4c: Composite occluders with circular reveal lens ---
+            _occlusionRevealRenderer.Composite(
+                _worldSpriteBatch,
+                _player.Center,
+                worldMatrix,
+                previousRenderTarget);
         }
-
-        for (var i = 0; i < _firepits.Length; i++)
+        else
         {
-            _firepits[i].Draw(_worldSpriteBatch, _firepits[i].Bounds.Bottom / mapHeight);
+            _worldSpriteBatch.Begin(
+                sortMode: SpriteSortMode.FrontToBack,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp,
+                transformMatrix: worldMatrix);
+            DrawWorldEntities(mapHeight, playerDepth, EntityDepthFilter.All);
+            _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, _follower.Bounds.Bottom / mapHeight);
+            _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, playerDepth);
+            if (_showCollisionBounds)
+            {
+                DrawCollisionBounds();
+            }
+            _worldSpriteBatch.End();
         }
-
-        for (var i = 0; i < _cozyLakeCabins.Length; i++)
-        {
-            var cabinBounds = _cozyLakeCabins[i].Bounds;
-            _cozyLakeCabins[i].Draw(_worldSpriteBatch, (cabinBounds.Bottom - CabinSortAnchorOffsetPixels) / mapHeight);
-        }
-
-        for (var i = 0; i < _pineTrees.Length; i++)
-        {
-            var treeBounds = _pineTrees[i].Bounds;
-            _pineTrees[i].Draw(_worldSpriteBatch, (treeBounds.Bottom - PineTreeSortAnchorOffsetPixels) / mapHeight);
-        }
-
-        _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, _follower.Bounds.Bottom / mapHeight);
-        _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, _player.Bounds.Bottom / mapHeight);
-        if (_showCollisionBounds)
-        {
-            DrawCollisionBounds();
-        }
-        _worldSpriteBatch.End();
 
         // --- Pass 4b: Smoke particles ---
         _worldSpriteBatch.Begin(
@@ -563,6 +572,7 @@ public sealed class GameplayScreen : IGameScreen
     /// <inheritdoc />
     public void UnloadContent()
     {
+        _occlusionRevealRenderer?.UnloadContent();
         _cloudShadowRenderer?.UnloadContent();
         _lightingRenderer?.UnloadContent();
         _worldSpriteBatch?.Dispose();
@@ -1104,5 +1114,120 @@ public sealed class GameplayScreen : IGameScreen
         return new Vector2(
             (physicalPosition.X - offsetX) / (float)scale,
             (physicalPosition.Y - offsetY) / (float)scale);
+    }
+
+    /// <summary>Depth filter mode for <see cref="DrawWorldEntities"/>.</summary>
+    private enum EntityDepthFilter { All, BehindOrAtPlayer, InFrontOfPlayer }
+
+    /// <summary>
+    /// Draws all world prop entities (not the player or follower) that pass
+    /// the depth filter relative to the player. Each entity's sort depth is
+    /// computed identically to the original single-pass drawing code.
+    /// </summary>
+    private void DrawWorldEntities(float mapHeight, float playerDepth, EntityDepthFilter filter)
+    {
+        for (var i = 0; i < _boulders.Length; i++)
+        {
+            var depth = _boulders[i].Bounds.Bottom / mapHeight;
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _boulders[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        // Docks always draw at depth 0 — always behind every sorted entity.
+        if (filter != EntityDepthFilter.InFrontOfPlayer)
+        {
+            for (var i = 0; i < _docks.Length; i++)
+                _docks[i].Draw(_worldSpriteBatch);
+        }
+
+        for (var i = 0; i < _sunkenLogs.Length; i++)
+        {
+            var depth = _sunkenLogs[i].Bounds.Bottom / mapHeight;
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _sunkenLogs[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _sunkenChests.Length; i++)
+        {
+            var depth = _sunkenChests[i].Bounds.Bottom / mapHeight;
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _sunkenChests[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _firepits.Length; i++)
+        {
+            var depth = _firepits[i].Bounds.Bottom / mapHeight;
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _firepits[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _cozyLakeCabins.Length; i++)
+        {
+            var cabinBounds = _cozyLakeCabins[i].Bounds;
+            var depth = (cabinBounds.Bottom - CabinSortAnchorOffsetPixels) / mapHeight;
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _cozyLakeCabins[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _pineTrees.Length; i++)
+        {
+            var treeBounds = _pineTrees[i].Bounds;
+            var depth = (treeBounds.Bottom - PineTreeSortAnchorOffsetPixels) / mapHeight;
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _pineTrees[i].Draw(_worldSpriteBatch, depth);
+        }
+    }
+
+    private static bool PassesDepthFilter(float depth, float playerDepth, EntityDepthFilter filter)
+    {
+        return filter switch
+        {
+            EntityDepthFilter.BehindOrAtPlayer => depth <= playerDepth,
+            EntityDepthFilter.InFrontOfPlayer => depth > playerDepth,
+            _ => true
+        };
+    }
+
+    /// <summary>
+    /// Checks whether any world entity that sorts in front of the player
+    /// overlaps the player's bounds. Used to activate the reveal lens.
+    /// </summary>
+    private bool CheckPlayerOcclusion()
+    {
+        var mapHeight = (float)_worldRenderer.MapPixelHeight;
+        var playerDepth = _player.Bounds.Bottom / mapHeight;
+        // Expand slightly so the reveal activates just before full overlap.
+        var expandedBounds = _player.Bounds;
+        expandedBounds.Inflate(6, 6);
+
+        for (var i = 0; i < _cozyLakeCabins.Length; i++)
+        {
+            var depth = (_cozyLakeCabins[i].Bounds.Bottom - CabinSortAnchorOffsetPixels) / mapHeight;
+            if (depth > playerDepth && _cozyLakeCabins[i].Bounds.Intersects(expandedBounds))
+                return true;
+        }
+
+        for (var i = 0; i < _pineTrees.Length; i++)
+        {
+            var depth = (_pineTrees[i].Bounds.Bottom - PineTreeSortAnchorOffsetPixels) / mapHeight;
+            if (depth > playerDepth && _pineTrees[i].Bounds.Intersects(expandedBounds))
+                return true;
+        }
+
+        for (var i = 0; i < _boulders.Length; i++)
+        {
+            var depth = _boulders[i].Bounds.Bottom / mapHeight;
+            if (depth > playerDepth && _boulders[i].Bounds.Intersects(expandedBounds))
+                return true;
+        }
+
+        for (var i = 0; i < _sunkenLogs.Length; i++)
+        {
+            var depth = _sunkenLogs[i].Bounds.Bottom / mapHeight;
+            if (depth > playerDepth && _sunkenLogs[i].Bounds.Intersects(expandedBounds))
+                return true;
+        }
+
+        return false;
     }
 }

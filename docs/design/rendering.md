@@ -17,6 +17,7 @@
 | **UI rendering pass** | Separate SpriteBatch without camera transform | Screen-space UI stays fixed regardless of camera position. |
 | **Screenshot capture source** | Final virtual scene render target | Copies the post-processed gameplay frame to the clipboard without depending on window size or letterboxing. |
 | **Y-sorting** | `SpriteSortMode.FrontToBack` in entity pass; `layerDepth = Bounds.Bottom / mapPixelHeight` | Entities with a lower screen-bottom Y draw behind those with a higher Y. Uses XNA's native sprite depth sorting — no custom interface required. Entities that should not participate (e.g., docks) pass `layerDepth = 0` to pin them behind all sorted entities. |
+| **Occlusion reveal** | Entities in front of player drawn to separate RT, composited with `OcclusionReveal` shader creating a circular alpha-fade lens | Player remains visible behind tall props. Zero cost when no occlusion is detected (original single-pass used). |
 | **VSync** | *(TBD)* | Off for uncapped frames or on for tear-free. |
 | **Fixed timestep** | *(TBD)* | Off for variable delta unless physics requires it. |
 
@@ -55,6 +56,26 @@ Entities that should not participate in Y-sorting (e.g., `Dock`) call `Draw()` w
 
 If a tall sprite's visual "ground contact" does not match `Bounds.Bottom`, add a configurable sort-Y offset to shift the anchor without changing collision bounds.
 
+## Occlusion Reveal (See-Through Lens)
+
+When the player walks behind a tall prop (tree, cabin, boulder), a circular alpha-fade lens centred on the player reveals them through the occluding object.
+
+### How it works
+
+1. **Detection (Update):** `CheckPlayerOcclusion()` tests whether any Y-sorted entity both sorts in front of the player AND overlaps the player's expanded bounding box.
+2. **Split rendering (Draw):** When occlusion is active, the entity Y-sort pass splits into two sub-passes:
+   - **Pass 4a:** Entities behind/at player depth + player + follower → drawn directly to the scene.
+   - **Pass 4b:** Entities in front of player → drawn to `OcclusionRevealRenderer.OccluderTarget` render target.
+   - **Pass 4c:** `OccluderTarget` composited back to scene via the `OcclusionReveal` shader with `BlendState.AlphaBlend`.
+3. **Shader:** `OcclusionReveal.fx` computes distance from each pixel to the player centre (in UV space, aspect-ratio corrected). Inside the reveal radius, alpha fades from `MinAlpha` at the centre to full opacity at the edge using `smoothstep`.
+4. **No-op path:** When no occlusion is detected, the original single-pass Y-sort drawing is used with zero performance cost.
+
+| Parameter | Default | Purpose |
+|---|---|---|
+| `RevealRadius` | 0.12 UV | Size of the circular reveal lens |
+| `EdgeSoftness` | 0.55 | Fraction of radius used as soft gradient edge |
+| `MinAlpha` | 0.25 | Minimum opacity at the lens centre (0 = fully transparent) |
+
 ## Particle System & Effects
 
 | Decision | Value | Rationale |
@@ -73,5 +94,7 @@ If a tall sprite's visual "ground contact" does not match `Bounds.Bottom`, add a
 | `LightingRenderer` | Owns the low-resolution lightmap render target, draws additive point lights from `LightData` snapshots, and composites the lightmap over the scene with multiply blending. |
 | `CloudShadowRenderer` | Generates tileable Perlin-noise cloud textures at load time, draws two independently scrolling layers onto a half-resolution shadow map each frame, and composites with multiply blending for soft drifting cloud shadows. |
 | `TiledWorldRenderer` | Wraps TMX/TSX map loading, deterministic weighted tile-variant drawing, and `Water/*` layer grouping for the distortion pass. |
+
+| `OcclusionRevealRenderer` | Manages a virtual-resolution render target for entities that sort in front of the player. Composites them back over the scene through the `OcclusionReveal` shader which applies a circular alpha-fade lens centred on the player, letting the player show through occluding props. |
 
 *(Add entries as graphics classes are created — ScreenScaler, etc.)*

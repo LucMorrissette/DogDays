@@ -207,6 +207,12 @@
 /processorParam:TextureFormat=Color
 /build:Tilesets/wooden-dock-leg-left.png
 
+#begin Effects/OcclusionReveal.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:Effects/OcclusionReveal.fx
+
 #begin Effects/WaterDistortion.fx
 /importer:EffectImporter
 /processor:EffectProcessor

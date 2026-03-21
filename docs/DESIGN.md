@@ -24,6 +24,7 @@ Living source of truth for the RiverRats project's architecture, design decision
 | **Walkable prop surfaces** | Prop bounds can override blocked terrain beneath them | Supports authored surfaces like docks or bridges without hand-editing collision mask tiles. |
 | **Object-layer colliders** | TMX `Colliders` object layer provides sub-tile collision rectangles merged into `WorldCollisionMap` | Enables precise collision geometry for props and barriers without being constrained to tile-grid granularity. |
 | **Entity Y-sorting** | `SpriteSortMode.FrontToBack` with `layerDepth = Bounds.Bottom / mapPixelHeight` per entity | Correct depth overlap (e.g., player behind house) using XNA's built-in sprite sorting — no custom sort or interface needed. |
+| **Occlusion reveal** | Entities in front of the player are drawn to a separate render target and composited with the `OcclusionReveal` shader, which creates a circular alpha-fade lens around the player centre | Lets the player remain visible behind tall props (trees, cabins) without breaking Y-sort or requiring per-entity transparency logic. |
 
 ---
 
