@@ -14,11 +14,8 @@ public sealed class SpriteAnimator
     private readonly int _frameWidth;
     private readonly int _frameHeight;
     private readonly int _framesPerDirection;
-    private readonly float _frameDuration;
 
-    private float _elapsed;
-    private int _currentFrame;
-    private bool _isMoving;
+    private FrameTimer _timer;
 
     /// <summary>
     /// Initializes a SpriteAnimator with sheet layout parameters.
@@ -32,20 +29,20 @@ public sealed class SpriteAnimator
         _frameWidth = frameWidth;
         _frameHeight = frameHeight;
         _framesPerDirection = framesPerDirection;
-        _frameDuration = frameDuration;
+        _timer = new FrameTimer(framesPerDirection, frameDuration);
     }
 
     /// <summary>Current facing direction (selects the sheet row).</summary>
     public FacingDirection Direction { get; set; } = FacingDirection.Down;
 
     /// <summary>Current animation frame index (0-based column).</summary>
-    public int CurrentFrame => _currentFrame;
+    public int CurrentFrame => _timer.CurrentFrame;
 
     /// <summary>
     /// Returns the source rectangle for the current frame on the sprite sheet.
     /// </summary>
     public Rectangle SourceRectangle => new(
-        _currentFrame * _frameWidth,
+        CurrentFrame * _frameWidth,
         (int)Direction * _frameHeight,
         _frameWidth,
         _frameHeight);
@@ -57,22 +54,13 @@ public sealed class SpriteAnimator
     /// <param name="isMoving">Whether the entity is currently moving.</param>
     public void Update(GameTime gameTime, bool isMoving)
     {
-        _isMoving = isMoving;
-
-        if (!_isMoving)
+        if (!isMoving)
         {
-            _currentFrame = 0;
-            _elapsed = 0f;
+            _timer.Reset();
             return;
         }
 
-        _elapsed += (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-        while (_elapsed >= _frameDuration)
-        {
-            _elapsed -= _frameDuration;
-            _currentFrame = (_currentFrame + 1) % _framesPerDirection;
-        }
+        _timer.Advance(gameTime);
     }
 
     /// <summary>

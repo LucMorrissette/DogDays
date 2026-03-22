@@ -16,8 +16,8 @@ public class InputManagerTests
     {
         var source = new FakeKeyboardStateSource(
             new KeyboardState(),
-            new KeyboardState(Keys.Escape),
-            new KeyboardState(Keys.Escape));
+            new KeyboardState(Keys.F12),
+            new KeyboardState(Keys.F12));
 
         var input = new InputManager(source);
 
@@ -33,7 +33,7 @@ public class InputManagerTests
     public void IsReleased__OnTransitionDownToUp__ReturnsTrueForOneFrame()
     {
         var source = new FakeKeyboardStateSource(
-            new KeyboardState(Keys.Escape),
+            new KeyboardState(Keys.F12),
             new KeyboardState(),
             new KeyboardState());
 

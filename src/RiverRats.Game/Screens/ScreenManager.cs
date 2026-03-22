@@ -16,6 +16,7 @@ public sealed class ScreenManager
     private readonly List<IGameScreen> _pendingAdds = new();
     private readonly List<IGameScreen> _pendingRemoves = new();
     private bool _isUpdating;
+    private IGameScreen _pendingReplace;
 
     /// <summary>Number of screens currently on the stack.</summary>
     public int Count => _screens.Count;
@@ -69,7 +70,18 @@ public sealed class ScreenManager
     {
         if (screen is null) throw new ArgumentNullException(nameof(screen));
 
-        // Unload from top to bottom.
+        if (_isUpdating)
+        {
+            _pendingReplace = screen;
+        }
+        else
+        {
+            ExecuteReplace(screen);
+        }
+    }
+
+    private void ExecuteReplace(IGameScreen screen)
+    {
         for (var i = _screens.Count - 1; i >= 0; i--)
         {
             _screens[i].UnloadContent();
@@ -141,5 +153,12 @@ public sealed class ScreenManager
         }
 
         _pendingAdds.Clear();
+
+        if (_pendingReplace is not null)
+        {
+            var screen = _pendingReplace;
+            _pendingReplace = null;
+            ExecuteReplace(screen);
+        }
     }
 }

@@ -6,7 +6,7 @@ namespace RiverRats.Game.Entities;
 /// <summary>
 /// Static world obstacle rendered from a single sprite and treated as solid for movement.
 /// </summary>
-public sealed class Boulder
+public sealed class Boulder : IWorldProp
 {
     private readonly Texture2D _texture;
     private readonly Vector2 _position;

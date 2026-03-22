@@ -12,11 +12,8 @@ public sealed class LoopAnimator
 {
     private readonly int _frameWidth;
     private readonly int _frameHeight;
-    private readonly int _frameCount;
-    private readonly float _frameDuration;
 
-    private float _elapsed;
-    private int _currentFrame;
+    private FrameTimer _timer;
 
     /// <summary>
     /// Initializes a LoopAnimator for a horizontal sprite strip.
@@ -29,19 +26,18 @@ public sealed class LoopAnimator
     {
         _frameWidth = frameWidth;
         _frameHeight = frameHeight;
-        _frameCount = frameCount;
-        _frameDuration = frameDuration;
+        _timer = new FrameTimer(frameCount, frameDuration);
     }
 
     /// <summary>Current animation frame index (0-based).</summary>
-    public int CurrentFrame => _currentFrame;
+    public int CurrentFrame => _timer.CurrentFrame;
 
     /// <summary>
     /// Returns the source rectangle for the current frame on the sprite sheet.
     /// Frames are laid out in a single horizontal row.
     /// </summary>
     public Rectangle SourceRectangle => new(
-        _currentFrame * _frameWidth,
+        CurrentFrame * _frameWidth,
         0,
         _frameWidth,
         _frameHeight);
@@ -52,13 +48,7 @@ public sealed class LoopAnimator
     /// <param name="gameTime">Frame timing.</param>
     public void Update(GameTime gameTime)
     {
-        _elapsed += (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-        while (_elapsed >= _frameDuration)
-        {
-            _elapsed -= _frameDuration;
-            _currentFrame = (_currentFrame + 1) % _frameCount;
-        }
+        _timer.Advance(gameTime);
     }
 
     /// <summary>

@@ -6,7 +6,7 @@ namespace RiverRats.Game.Entities;
 /// <summary>
 /// Static world prop rendered from a sunken chest sprite.
 /// </summary>
-public sealed class SunkenChest
+public sealed class SunkenChest : IWorldProp
 {
     private readonly Texture2D _texture;
     private readonly Vector2 _position;

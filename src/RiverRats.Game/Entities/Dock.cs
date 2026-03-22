@@ -6,7 +6,7 @@ namespace RiverRats.Game.Entities;
 /// <summary>
 /// Static world prop rendered from a dock sprite.
 /// </summary>
-public sealed class Dock
+public sealed class Dock : IWorldProp
 {
     private readonly Texture2D _texture;
     private readonly Vector2 _position;

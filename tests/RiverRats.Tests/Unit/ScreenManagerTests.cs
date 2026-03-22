@@ -217,6 +217,29 @@ public sealed class ScreenManagerTests
         Assert.True(top.UnloadCalled);
     }
 
+    [Fact]
+    public void Replace__CalledDuringUpdate__DefersReplacementUntilAfterUpdate()
+    {
+        var manager = new ScreenManager();
+        var originalScreen = new StubScreen();
+        var replacementScreen = new StubScreen();
+        manager.Push(originalScreen);
+
+        // Create a screen that calls Replace during its own Update
+        var triggerScreen = new ReplaceOnUpdateScreen(manager, replacementScreen);
+        manager.Push(triggerScreen);
+
+        // This Update should NOT crash despite Replace being called inside it
+        manager.Update(new GameTime(), new FakeInputManager());
+
+        // After Update completes, the replacement should have been applied
+        Assert.Equal(1, manager.Count);
+        Assert.Same(replacementScreen, manager.ActiveScreen);
+        Assert.True(originalScreen.UnloadCalled);
+        Assert.True(triggerScreen.UnloadCalled);
+        Assert.True(replacementScreen.LoadCalled);
+    }
+
     /// <summary>
     /// Minimal screen stub that records lifecycle calls for assertions.
     /// </summary>
@@ -254,5 +277,31 @@ public sealed class ScreenManagerTests
             DrawCount++;
             OnDraw?.Invoke(_name);
         }
+    }
+
+    private sealed class ReplaceOnUpdateScreen : IGameScreen
+    {
+        private readonly ScreenManager _manager;
+        private readonly IGameScreen _replacement;
+
+        public ReplaceOnUpdateScreen(ScreenManager manager, IGameScreen replacement)
+        {
+            _manager = manager;
+            _replacement = replacement;
+        }
+
+        public bool IsTransparent => false;
+        public bool LoadCalled { get; private set; }
+        public bool UnloadCalled { get; private set; }
+
+        public void LoadContent() => LoadCalled = true;
+        public void UnloadContent() => UnloadCalled = true;
+
+        public void Update(GameTime gameTime, IInputManager input)
+        {
+            _manager.Replace(_replacement);
+        }
+
+        public void Draw(GameTime gameTime, SpriteBatch spriteBatch) { }
     }
 }
