@@ -79,6 +79,7 @@ Each sub-document covers a focused domain. Load only what you need for your curr
 | [testing.md](design/testing.md) | §25 | Testing strategy, test helpers catalog |
 | [events.md](design/events.md) | §26 | Complete game events catalog |
 | [tooling.md](design/tooling.md) | §27, §28, §29 | Technical gotchas, dev assets, developer tools |
+| [guardrails.md](design/guardrails.md) | §30–§34 | File size limits, ADR discipline, test coverage rules, code review checklist, naming conventions |
 | [`features/`](features/) | — | Implemented feature specs (one `.md` per feature) |
 
 ---
@@ -96,5 +97,6 @@ Each sub-document covers a focused domain. Load only what you need for your curr
 | New game event | `docs/design/events.md` | §26 |
 | New test helper/fake | `docs/design/testing.md` | §25 |
 | New architectural pattern | `docs/design/architecture.md` | §9 |
+| New guardrail or convention | `docs/design/guardrails.md` | §30–§34 |
 | New implemented feature | `docs/features/<feature-name>.md` | — |
 | Folder structure changes | `docs/DESIGN.md` only | §2 |
