@@ -27,6 +27,9 @@ public sealed class GameplayScreen : IGameScreen
     private const float DayNightCycleDurationSeconds = 120f;
     private const float DayNightCycleStartProgress = 0.30f;
     private const int GradientStripCount = 32;
+    private const int MaxFireflyLights = 32;
+    private const int MaxParticleCount = 512;
+    private const int OcclusionExpandPixels = 6;
     private const float CabinSortAnchorOffsetPixels = 20f;
     private const float PineTreeSortAnchorOffsetPixels = 10f;
     private static readonly WaterShaderConfig WaterShader = WaterShaderConfig.Default;
@@ -215,7 +218,7 @@ public sealed class GameplayScreen : IGameScreen
         _cozyLakeCabins = PropFactory.CreatePropsByType(_cozyLakeCabinTexture, _worldRenderer.PropPlacements, "cozy-lake-cabin", isUnderwater: false);
         _pineTrees = PropFactory.CreatePropsByType(pineTreeTexture, _worldRenderer.PropPlacements, "pine-tree", isUnderwater: false);
         _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
-        _particleManager = new ParticleManager(512);
+        _particleManager = new ParticleManager(MaxParticleCount);
         for (var i = 0; i < _firepits.Length; i++)
         {
             _firepits[i].AttachSmokeEmitter(new ParticleEmitter(_particleManager, FireSmokeProfile));
@@ -280,7 +283,7 @@ public sealed class GameplayScreen : IGameScreen
         _cloudShadowRenderer.LoadContent();
         _fireLightData = new LightData[_firepits.Length];
         _fireflyManager = new FireflyManager();
-        _combinedLightData = new LightData[_firepits.Length + 32];
+        _combinedLightData = new LightData[_firepits.Length + MaxFireflyLights];
 
         _occlusionRevealRenderer = new OcclusionRevealRenderer(_graphicsDevice, _virtualWidth, _virtualHeight);
         _occlusionRevealRenderer.LoadContent(_content);
@@ -802,7 +805,7 @@ public sealed class GameplayScreen : IGameScreen
         var playerDepth = _player.Bounds.Bottom / mapHeight;
         // Expand slightly so the reveal activates just before full overlap.
         var expandedBounds = _player.Bounds;
-        expandedBounds.Inflate(6, 6);
+        expandedBounds.Inflate(OcclusionExpandPixels, OcclusionExpandPixels);
 
         for (var i = 0; i < _cozyLakeCabins.Length; i++)
         {

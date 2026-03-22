@@ -6,7 +6,7 @@ namespace RiverRats.Game.Data;
 /// Configuration data for a particle effect.
 /// Defines how particles should look and behave when emitted.
 /// </summary>
-public record ParticleProfile
+public sealed record ParticleProfile
 {
     /// <summary>Number of particles to spawn per second.</summary>
     public float SpawnRate { get; init; } = 10f;

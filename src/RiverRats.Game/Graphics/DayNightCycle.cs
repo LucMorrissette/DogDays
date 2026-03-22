@@ -21,7 +21,7 @@ public sealed class DayNightCycle
     private const float DuskEnd = 0.80f;
 
     /// <summary>Multiply tint during full night — dark blue cast.</summary>
-    private static readonly Color NightTint = new(60, 60, 120);
+    internal static readonly Color NightTint = new(60, 60, 120);
 
     /// <summary>Multiply tint during full day — no change (identity).</summary>
     private static readonly Color DayTint = Color.White;

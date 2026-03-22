@@ -9,11 +9,12 @@ namespace RiverRats.Game.Components;
 /// A component that can be attached to entities to spawn particles.
 /// Manages the timing and frequency of emission.
 /// </summary>
-public class ParticleEmitter
+public sealed class ParticleEmitter
 {
     private readonly ParticleManager _particleManager;
     private readonly ParticleProfile _profile;
     private float _accumulatedTime;
+    private readonly float _timePerParticle;
 
     /// <summary>Gets or sets whether the emitter is currently active.</summary>
     public bool IsEnabled { get; set; } = true;
@@ -25,6 +26,7 @@ public class ParticleEmitter
     {
         _particleManager = manager ?? throw new ArgumentNullException(nameof(manager));
         _profile = profile ?? throw new ArgumentNullException(nameof(profile));
+        _timePerParticle = 1f / _profile.SpawnRate;
     }
 
     /// <summary>Updates the emitter and spawns particles based on the spawn rate.</summary>
@@ -37,11 +39,9 @@ public class ParticleEmitter
         float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
         _accumulatedTime += dt;
 
-        float timePerParticle = 1f / _profile.SpawnRate;
-
-        while (_accumulatedTime >= timePerParticle)
+        while (_accumulatedTime >= _timePerParticle)
         {
-            _accumulatedTime -= timePerParticle;
+            _accumulatedTime -= _timePerParticle;
             _particleManager.Emit(_profile, position, 1);
         }
     }

@@ -146,10 +146,12 @@ public sealed class FireflyManager
     /// <returns>Number of light entries written.</returns>
     public int WriteLightData(LightData[] lights, int offset)
     {
+        var availableSlots = lights.Length - offset;
         var count = 0;
         for (var i = 0; i < _maxFireflies; i++)
         {
             if (!_fireflies[i].IsActive) continue;
+            if (count >= availableSlots) break;
 
             var normalizedLife = _fireflies[i].LifeRemaining / _fireflies[i].InitialLife;
             // Fade in quickly at start, fade out at end.

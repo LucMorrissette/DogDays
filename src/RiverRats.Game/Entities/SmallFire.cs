@@ -17,6 +17,8 @@ public sealed class SmallFire
 {
     private const float SmokeOffsetX = 8f;   // Center of 16px fire sprite
     private const float SmokeOffsetY = 2f;   // Near the top of the fire
+    private const float LightOffsetY = 4f;   // Flame tip (~top quarter of 16px sprite)
+    private const float SparkOffsetY = SmokeOffsetY + 2f;  // Slightly lower than smoke (closer to flame center)
 
     /// <summary>Base light radius in world pixels.</summary>
     public const float BaseLightRadius = 110f;
@@ -70,8 +72,8 @@ public sealed class SmallFire
     /// positioned near the flame tip (top quarter of the sprite).
     /// </summary>
     public Vector2 LightPosition => new(
-        _position.X + 8f,        // center of 16 px sprite
-        _position.Y + 4f);       // flame tip (~top quarter)
+        _position.X + SmokeOffsetX,
+        _position.Y + LightOffsetY);
 
     /// <summary>Current light radius in world pixels (fluctuates with flicker).</summary>
     public float LightRadius { get; private set; }
@@ -128,8 +130,8 @@ public sealed class SmallFire
         if (_sparkEmitter != null)
         {
             Vector2 sparkPos = new Vector2(
-                _position.X + SmokeOffsetX,   // Same X center as smoke
-                _position.Y + SmokeOffsetY + 2f);  // Slightly lower than smoke (closer to flame center)
+                _position.X + SmokeOffsetX,
+                _position.Y + SparkOffsetY);
             _sparkEmitter.Update(gameTime, sparkPos);
         }
     }

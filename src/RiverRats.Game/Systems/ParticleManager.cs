@@ -9,7 +9,7 @@ namespace RiverRats.Game.Systems;
 /// Manages a pool of particles and handles their update and draw cycles.
 /// Designed for zero-allocation performance in the hot loop.
 /// </summary>
-public class ParticleManager
+public sealed class ParticleManager
 {
     private readonly Particle[] _particles;
     private readonly int[] _freeIndices;

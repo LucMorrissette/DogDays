@@ -15,8 +15,12 @@ public sealed class Camera2D
     private readonly float _maxX;
     private readonly float _minY;
     private readonly float _maxY;
+    private readonly float _halfWidth;
+    private readonly float _halfHeight;
 
     private Vector2 _position;
+    private Matrix _viewMatrix;
+    private bool _viewMatrixDirty = true;
 
     /// <summary>
     /// Initializes a camera with fixed virtual viewport dimensions and map pixel bounds for clamping.
@@ -57,6 +61,9 @@ public sealed class Camera2D
             _maxY = mapPixelHeight - halfViewH;
         }
 
+        _halfWidth = halfViewW;
+        _halfHeight = halfViewH;
+
         // Start centred on the top-left of the clamped range (first visible tile area).
         _position = new Vector2(_minX, _minY);
     }
@@ -70,9 +77,15 @@ public sealed class Camera2D
     /// <param name="target">World-space position to centre the viewport on.</param>
     public void LookAt(Vector2 target)
     {
-        _position = new Vector2(
+        var clamped = new Vector2(
             MathHelper.Clamp(target.X, _minX, _maxX),
             MathHelper.Clamp(target.Y, _minY, _maxY));
+
+        if (_position != clamped)
+        {
+            _position = clamped;
+            _viewMatrixDirty = true;
+        }
     }
 
     /// <summary>
@@ -81,11 +94,17 @@ public sealed class Camera2D
     /// </summary>
     public Matrix GetViewMatrix()
     {
-        // Translate so the camera position maps to the centre of the virtual viewport.
-        return Matrix.CreateTranslation(
-            _viewportWidth / 2f - _position.X,
-            _viewportHeight / 2f - _position.Y,
-            0f);
+        if (_viewMatrixDirty)
+        {
+            // Translate so the camera position maps to the centre of the virtual viewport.
+            _viewMatrix = Matrix.CreateTranslation(
+                _halfWidth - _position.X,
+                _halfHeight - _position.Y,
+                0f);
+            _viewMatrixDirty = false;
+        }
+
+        return _viewMatrix;
     }
 
     /// <summary>
@@ -95,7 +114,7 @@ public sealed class Camera2D
     public Vector2 ScreenToWorld(Vector2 screenPosition)
     {
         return new Vector2(
-            screenPosition.X + _position.X - _viewportWidth / 2f,
-            screenPosition.Y + _position.Y - _viewportHeight / 2f);
+            screenPosition.X + _position.X - _halfWidth,
+            screenPosition.Y + _position.Y - _halfHeight);
     }
 }

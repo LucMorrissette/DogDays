@@ -27,20 +27,6 @@ public sealed class CloudShadowRenderer : IDisposable
     /// <summary>Size of each generated noise texture in pixels.</summary>
     private const int NoiseTextureSize = 256;
 
-    /// <summary>
-    /// Custom blend state that multiplies destination by source.
-    /// White source pixels leave the scene unchanged; darker pixels darken the scene.
-    /// </summary>
-    private static readonly BlendState MultiplyBlend = new()
-    {
-        ColorBlendFunction = BlendFunction.Add,
-        ColorSourceBlend = Blend.DestinationColor,
-        ColorDestinationBlend = Blend.Zero,
-        AlphaBlendFunction = BlendFunction.Add,
-        AlphaSourceBlend = Blend.DestinationAlpha,
-        AlphaDestinationBlend = Blend.Zero
-    };
-
     private readonly GraphicsDevice _graphicsDevice;
     private readonly int _virtualWidth;
     private readonly int _virtualHeight;
@@ -283,7 +269,7 @@ public sealed class CloudShadowRenderer : IDisposable
         // LinearWrap handles seamless tiling — no manual tile loop needed.
         spriteBatch.Begin(
             sortMode: SpriteSortMode.Deferred,
-            blendState: MultiplyBlend,
+            blendState: BlendStates.Multiply,
             samplerState: SamplerState.LinearWrap);
 
         spriteBatch.Draw(
@@ -308,7 +294,7 @@ public sealed class CloudShadowRenderer : IDisposable
         // blurs naturally when stretched to full virtual resolution, producing soft edges.
         spriteBatch.Begin(
             sortMode: SpriteSortMode.Deferred,
-            blendState: MultiplyBlend,
+            blendState: BlendStates.Multiply,
             samplerState: SamplerState.LinearClamp);
 
         spriteBatch.Draw(

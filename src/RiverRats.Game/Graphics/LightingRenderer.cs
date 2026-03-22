@@ -26,22 +26,7 @@ public sealed class LightingRenderer : IDisposable
     /// Ambient darkness color used to fill the lightmap at full night (NightStrength = 1).
     /// Matches the NightTint in DayNightCycle so the fire punches through consistently.
     /// </summary>
-    private static readonly Color NightAmbient = new(60, 60, 120);
-
-    /// <summary>
-    /// Custom blend state that multiplies the destination (scene) color by the
-    /// source (lightmap) color. Lit areas (white) pass through unchanged;
-    /// dark areas tint the scene toward black.
-    /// </summary>
-    private static readonly BlendState MultiplyBlend = new()
-    {
-        ColorBlendFunction = BlendFunction.Add,
-        ColorSourceBlend = Blend.DestinationColor,
-        ColorDestinationBlend = Blend.Zero,
-        AlphaBlendFunction = BlendFunction.Add,
-        AlphaSourceBlend = Blend.DestinationAlpha,
-        AlphaDestinationBlend = Blend.Zero
-    };
+    private static readonly Color NightAmbient = DayNightCycle.NightTint;
 
     private readonly GraphicsDevice _graphicsDevice;
     private readonly int _virtualWidth;
@@ -205,7 +190,7 @@ public sealed class LightingRenderer : IDisposable
         // blurs naturally when stretched to full virtual resolution.
         spriteBatch.Begin(
             sortMode: SpriteSortMode.Deferred,
-            blendState: MultiplyBlend,
+            blendState: BlendStates.Multiply,
             samplerState: SamplerState.LinearClamp);
 
         spriteBatch.Draw(
