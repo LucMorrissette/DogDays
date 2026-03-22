@@ -12,6 +12,8 @@
 
 | Decision | Value | Rationale |
 |---|---|---|
+| `prepare_pine_tree.py` | `tooling/sprites/prepare_pine_tree.py` | Removes background, crops, resizes to 128 px tall (4 tiles), and reduces palette. Outputs `Content/Sprites/pine-tree.png`. |
+| `prepare_birch_tree.py` | `tooling/sprites/prepare_birch_tree.py` | Removes background, crops, resizes to 128 px tall (4 tiles), and reduces palette. Outputs `Content/Sprites/birch-tree.png`. |
 
 *(Add entries for placeholder art generation, asset scripts, content pipeline tooling, etc.)*
 

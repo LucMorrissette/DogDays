@@ -139,7 +139,7 @@ public sealed class Firepit
     }
 
     /// <summary>
-    /// Draws the firepit in world space.
+    /// Draws the firepit stone base in world space.
     /// </summary>
     /// <param name="spriteBatch">Sprite batch for the world pass.</param>
     /// <param name="layerDepth">Depth value for Y-sorting (0 = back, 1 = front).</param>
@@ -151,10 +151,19 @@ public sealed class Firepit
         }
 
         spriteBatch.Draw(_texture, _position, null, Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, layerDepth);
+    }
 
+    /// <summary>
+    /// Draws the attached fire effect in world space. Called in a separate pass
+    /// after Y-sorted entities so flames always render on top of the stone base
+    /// and are not occluded by characters walking past.
+    /// </summary>
+    /// <param name="spriteBatch">Sprite batch for the fire overlay pass.</param>
+    public void DrawFire(SpriteBatch spriteBatch)
+    {
         if (IsLit)
         {
-            _smallFire?.Draw(spriteBatch, layerDepth);
+            _smallFire?.Draw(spriteBatch);
         }
     }
 }

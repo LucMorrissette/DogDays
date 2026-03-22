@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="96" tileheight="128" tilecount="14" columns="0">
+<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="98" tileheight="128" tilecount="15" columns="0">
   <tile id="0">
     <properties>
       <property name="propType" value="boulder"/>
@@ -92,5 +92,11 @@
       <property name="propType" value="pine-tree"/>
     </properties>
     <image source="../Sprites/pine-tree.png" width="80" height="128"/>
+  </tile>
+  <tile id="14">
+    <properties>
+      <property name="propType" value="birch-tree"/>
+    </properties>
+    <image source="../Sprites/birch-tree.png" width="98" height="128"/>
   </tile>
 </tileset>

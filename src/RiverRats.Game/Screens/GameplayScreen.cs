@@ -35,6 +35,7 @@ public sealed class GameplayScreen : IGameScreen
     private const int MaxParticleCount = 512;
     private const float CabinSortAnchorOffsetPixels = 20f;
     private const float PineTreeSortAnchorOffsetPixels = 10f;
+    private const float BirchTreeSortAnchorOffsetPixels = 10f;
     private static readonly WaterShaderConfig WaterShader = WaterShaderConfig.Default;
     private static readonly FollowerMovementConfig FollowerConfig = new();
     private static readonly Vector2 FollowerStartOffset = new(0f, FollowerConfig.FollowDistancePixels);
@@ -102,6 +103,7 @@ public sealed class GameplayScreen : IGameScreen
     private FlatShoreDepthSimulator[] _flatShoreDepthSimulators;
     private Boulder[] _seaweeds;
     private Boulder[] _pineTrees;
+    private Boulder[] _birchTrees;
     private Dock[] _docks;
     private Boulder[] _dockLegsLeft;
     private WorldCollisionMap _collisionMap;
@@ -192,6 +194,7 @@ public sealed class GameplayScreen : IGameScreen
         _smallFireSpriteSheet = _content.Load<Texture2D>("Sprites/small-fire");
         _cozyLakeCabinTexture = _content.Load<Texture2D>("Sprites/cozy_lake_cabin");
         var pineTreeTexture = _content.Load<Texture2D>("Sprites/pine-tree");
+        var birchTreeTexture = _content.Load<Texture2D>("Sprites/birch-tree");
         _playerAnimator = new SpriteAnimator(
             PlayerFramePixels, PlayerFramePixels,
             WalkFramesPerDirection, WalkFrameDuration);
@@ -230,6 +233,7 @@ public sealed class GameplayScreen : IGameScreen
         _firepits = PropFactory.CreateFirepits(_firepitTexture, _smallFireSpriteSheet, _worldRenderer.PropPlacements);
         _cozyLakeCabins = PropFactory.CreatePropsByType(_cozyLakeCabinTexture, _worldRenderer.PropPlacements, "cozy-lake-cabin", isUnderwater: false);
         _pineTrees = PropFactory.CreatePropsByType(pineTreeTexture, _worldRenderer.PropPlacements, "pine-tree", isUnderwater: false);
+        _birchTrees = PropFactory.CreatePropsByType(birchTreeTexture, _worldRenderer.PropPlacements, "birch-tree", isUnderwater: false);
         _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
         _particleManager = new ParticleManager(MaxParticleCount);
         for (var i = 0; i < _firepits.Length; i++)
@@ -577,6 +581,18 @@ public sealed class GameplayScreen : IGameScreen
             _worldSpriteBatch.End();
         }
 
+        // --- Pass 4-fire: Fire flame overlay (deferred, always on top of Y-sorted entities) ---
+        _worldSpriteBatch.Begin(
+            sortMode: SpriteSortMode.Deferred,
+            blendState: BlendState.AlphaBlend,
+            samplerState: SamplerState.PointClamp,
+            transformMatrix: worldMatrix);
+        for (var i = 0; i < _firepits.Length; i++)
+        {
+            _firepits[i].DrawFire(_worldSpriteBatch);
+        }
+        _worldSpriteBatch.End();
+
         // --- Pass 4b: Smoke particles ---
         _worldSpriteBatch.Begin(
             sortMode: SpriteSortMode.Deferred,
@@ -849,6 +865,14 @@ public sealed class GameplayScreen : IGameScreen
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _pineTrees[i].Draw(_worldSpriteBatch, depth);
         }
+
+        for (var i = 0; i < _birchTrees.Length; i++)
+        {
+            var treeBounds = _birchTrees[i].Bounds;
+            var depth = (treeBounds.Bottom - BirchTreeSortAnchorOffsetPixels) / mapHeight;
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _birchTrees[i].Draw(_worldSpriteBatch, depth);
+        }
     }
 
     private static bool PassesDepthFilter(float depth, float playerDepth, EntityDepthFilter filter)
@@ -882,6 +906,13 @@ public sealed class GameplayScreen : IGameScreen
         {
             var depth = (_pineTrees[i].Bounds.Bottom - PineTreeSortAnchorOffsetPixels) / mapHeight;
             if (depth > characterDepth && _pineTrees[i].Bounds.Contains(characterBounds))
+                return true;
+        }
+
+        for (var i = 0; i < _birchTrees.Length; i++)
+        {
+            var depth = (_birchTrees[i].Bounds.Bottom - BirchTreeSortAnchorOffsetPixels) / mapHeight;
+            if (depth > characterDepth && _birchTrees[i].Bounds.Contains(characterBounds))
                 return true;
         }
 
