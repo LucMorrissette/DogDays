@@ -29,7 +29,6 @@ public sealed class GameplayScreen : IGameScreen
     private const int GradientStripCount = 32;
     private const int MaxFireflyLights = 32;
     private const int MaxParticleCount = 512;
-    private const int OcclusionExpandPixels = 6;
     private const float CabinSortAnchorOffsetPixels = 20f;
     private const float PineTreeSortAnchorOffsetPixels = 10f;
     private static readonly WaterShaderConfig WaterShader = WaterShaderConfig.Default;
@@ -119,6 +118,7 @@ public sealed class GameplayScreen : IGameScreen
     private OcclusionRevealRenderer _occlusionRevealRenderer;
     private DebugRenderer _debugRenderer;
     private bool _isPlayerOccluded;
+    private bool _isFollowerOccluded;
     private RenderTarget2D _previousRenderTarget;
     private bool _showCollisionBounds;
     private RippleSystem _rippleSystem;
@@ -320,7 +320,8 @@ public sealed class GameplayScreen : IGameScreen
         _followerAnimator.Direction = _follower.Facing;
         _followerAnimator.Update(gameTime, _follower.IsMoving);
         _camera.LookAt(_player.Center);
-        _isPlayerOccluded = CheckPlayerOcclusion();
+        _isPlayerOccluded = CheckOcclusion(_player.Bounds, _player.Bounds.Bottom / (float)_worldRenderer.MapPixelHeight);
+        _isFollowerOccluded = CheckOcclusion(_follower.Bounds, _follower.Bounds.Bottom / (float)_worldRenderer.MapPixelHeight);
         _worldRenderer.Update(gameTime);
         _dayNightCycle.Update(gameTime);
         var activeFireLightCount = 0;
@@ -477,16 +478,26 @@ public sealed class GameplayScreen : IGameScreen
         var mapHeight = (float)_worldRenderer.MapPixelHeight;
         var playerDepth = _player.Bounds.Bottom / mapHeight;
 
-        if (_isPlayerOccluded)
+        var followerDepth = _follower.Bounds.Bottom / mapHeight;
+        var anyOccluded = _isPlayerOccluded || _isFollowerOccluded;
+
+        if (anyOccluded)
         {
-            // --- Pass 4a: Entities behind/at player depth + player + follower ---
+            // The cutoff depth for the "behind" pass is the shallowest (smallest) of
+            // whichever characters are occluded, so all occluded characters are drawn
+            // in the first pass and the reveal lens uncovers them through the occluders.
+            var behindCutoff = _isPlayerOccluded && _isFollowerOccluded
+                ? Math.Min(playerDepth, followerDepth)
+                : _isPlayerOccluded ? playerDepth : followerDepth;
+
+            // --- Pass 4a: Entities behind/at shallowest occluded character + characters ---
             _worldSpriteBatch.Begin(
                 sortMode: SpriteSortMode.FrontToBack,
                 blendState: BlendState.AlphaBlend,
                 samplerState: SamplerState.PointClamp,
                 transformMatrix: worldMatrix);
-            DrawWorldEntities(mapHeight, playerDepth, EntityDepthFilter.BehindOrAtPlayer);
-            _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, _follower.Bounds.Bottom / mapHeight);
+            DrawWorldEntities(mapHeight, behindCutoff, EntityDepthFilter.BehindOrAtPlayer);
+            _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, followerDepth);
             _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, playerDepth);
             if (_showCollisionBounds)
             {
@@ -494,20 +505,21 @@ public sealed class GameplayScreen : IGameScreen
             }
             _worldSpriteBatch.End();
 
-            // --- Pass 4b: Entities in front of player → occluder render target ---
+            // --- Pass 4b: Entities in front of shallowest occluded character → occluder render target ---
             _occlusionRevealRenderer.BeginCapture();
             _worldSpriteBatch.Begin(
                 sortMode: SpriteSortMode.FrontToBack,
                 blendState: BlendState.AlphaBlend,
                 samplerState: SamplerState.PointClamp,
                 transformMatrix: worldMatrix);
-            DrawWorldEntities(mapHeight, playerDepth, EntityDepthFilter.InFrontOfPlayer);
+            DrawWorldEntities(mapHeight, behindCutoff, EntityDepthFilter.InFrontOfPlayer);
             _worldSpriteBatch.End();
 
-            // --- Pass 4c: Composite occluders with circular reveal lens ---
+            // --- Pass 4c: Composite occluders with circular reveal lens(es) ---
             _occlusionRevealRenderer.Composite(
                 _worldSpriteBatch,
                 _player.Center,
+                _isFollowerOccluded ? _follower.Center : null,
                 worldMatrix,
                 _previousRenderTarget);
         }
@@ -519,7 +531,7 @@ public sealed class GameplayScreen : IGameScreen
                 samplerState: SamplerState.PointClamp,
                 transformMatrix: worldMatrix);
             DrawWorldEntities(mapHeight, playerDepth, EntityDepthFilter.All);
-            _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, _follower.Bounds.Bottom / mapHeight);
+            _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, followerDepth);
             _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, playerDepth);
             if (_showCollisionBounds)
             {
@@ -796,42 +808,40 @@ public sealed class GameplayScreen : IGameScreen
     }
 
     /// <summary>
-    /// Checks whether any world entity that sorts in front of the player
-    /// overlaps the player's bounds. Used to activate the reveal lens.
+    /// Checks whether any world entity that sorts in front of <paramref name="characterBounds"/>
+    /// fully conceals those bounds. Used to activate the reveal lens for the player or follower.
     /// </summary>
-    private bool CheckPlayerOcclusion()
+    /// <param name="characterBounds">The character's world-space bounding rectangle.</param>
+    /// <param name="characterDepth">The character's sort depth (bottom / mapHeight).</param>
+    private bool CheckOcclusion(Rectangle characterBounds, float characterDepth)
     {
         var mapHeight = (float)_worldRenderer.MapPixelHeight;
-        var playerDepth = _player.Bounds.Bottom / mapHeight;
-        // Expand slightly so the reveal activates just before full overlap.
-        var expandedBounds = _player.Bounds;
-        expandedBounds.Inflate(OcclusionExpandPixels, OcclusionExpandPixels);
 
         for (var i = 0; i < _cozyLakeCabins.Length; i++)
         {
             var depth = (_cozyLakeCabins[i].Bounds.Bottom - CabinSortAnchorOffsetPixels) / mapHeight;
-            if (depth > playerDepth && _cozyLakeCabins[i].Bounds.Intersects(expandedBounds))
+            if (depth > characterDepth && _cozyLakeCabins[i].Bounds.Contains(characterBounds))
                 return true;
         }
 
         for (var i = 0; i < _pineTrees.Length; i++)
         {
             var depth = (_pineTrees[i].Bounds.Bottom - PineTreeSortAnchorOffsetPixels) / mapHeight;
-            if (depth > playerDepth && _pineTrees[i].Bounds.Intersects(expandedBounds))
+            if (depth > characterDepth && _pineTrees[i].Bounds.Contains(characterBounds))
                 return true;
         }
 
         for (var i = 0; i < _boulders.Length; i++)
         {
             var depth = _boulders[i].Bounds.Bottom / mapHeight;
-            if (depth > playerDepth && _boulders[i].Bounds.Intersects(expandedBounds))
+            if (depth > characterDepth && _boulders[i].Bounds.Contains(characterBounds))
                 return true;
         }
 
         for (var i = 0; i < _sunkenLogs.Length; i++)
         {
             var depth = _sunkenLogs[i].Bounds.Bottom / mapHeight;
-            if (depth > playerDepth && _sunkenLogs[i].Bounds.Intersects(expandedBounds))
+            if (depth > characterDepth && _sunkenLogs[i].Bounds.Contains(characterBounds))
                 return true;
         }
 

@@ -8,10 +8,11 @@ using Microsoft.Xna.Framework.Graphics;
 namespace RiverRats.Game.Graphics;
 
 /// <summary>
-/// Manages the render target and shader for revealing the player behind occluding
-/// entities via a circular alpha-fade lens. Occluding entities are drawn to a
-/// separate render target, then composited back over the scene through the
-/// <c>OcclusionReveal</c> shader which reduces alpha in a circle around the player.
+/// Manages the render target and shader for revealing the player (and optionally the
+/// follower) behind occluding entities via circular alpha-fade lenses. Occluding
+/// entities are drawn to a separate render target, then composited back over the scene
+/// through the <c>OcclusionReveal</c> shader which reduces alpha in a circle around
+/// each character that is occluded.
 /// </summary>
 public sealed class OcclusionRevealRenderer : IDisposable
 {
@@ -61,6 +62,8 @@ public sealed class OcclusionRevealRenderer : IDisposable
         _effect.Parameters["EdgeSoftness"].SetValue(DefaultEdgeSoftness);
         _effect.Parameters["MinAlpha"].SetValue(DefaultMinAlpha);
         _effect.Parameters["AspectRatio"].SetValue((float)_virtualWidth / _virtualHeight);
+        // Initialise follower lens to the sentinel "inactive" position.
+        _effect.Parameters["FollowerCenter"].SetValue(new Vector2(-1f, -1f));
 
         _occluderTarget = new RenderTarget2D(
             _graphicsDevice,
@@ -84,12 +87,16 @@ public sealed class OcclusionRevealRenderer : IDisposable
     }
 
     /// <summary>
-    /// Composites the occluder render target back over the scene with the
-    /// circular alpha-fade reveal centred on the player.
+    /// Composites the occluder render target back over the scene with circular alpha-fade
+    /// reveal lenses centred on the player and, optionally, the follower.
     /// Call this after the occluder SpriteBatch has ended.
     /// </summary>
     /// <param name="spriteBatch">Sprite batch for drawing the composite quad.</param>
     /// <param name="playerWorldCenter">Player centre in world-space pixels.</param>
+    /// <param name="followerWorldCenter">
+    /// Follower centre in world-space pixels, or <c>null</c> when the follower reveal
+    /// lens should be disabled.
+    /// </param>
     /// <param name="cameraViewMatrix">Current camera view matrix.</param>
     /// <param name="sceneRenderTarget">
     /// The render target that the scene is being drawn to (the one to restore after capture).
@@ -98,6 +105,7 @@ public sealed class OcclusionRevealRenderer : IDisposable
     public void Composite(
         SpriteBatch spriteBatch,
         Vector2 playerWorldCenter,
+        Vector2? followerWorldCenter,
         Matrix cameraViewMatrix,
         RenderTarget2D? sceneRenderTarget)
     {
@@ -105,6 +113,20 @@ public sealed class OcclusionRevealRenderer : IDisposable
         var screenPos = Vector2.Transform(playerWorldCenter, cameraViewMatrix);
         var playerUv = new Vector2(screenPos.X / _virtualWidth, screenPos.Y / _virtualHeight);
         _effect.Parameters["PlayerCenter"].SetValue(playerUv);
+
+        // Transform follower world position, or use sentinel (-1, -1) to disable the lens.
+        if (followerWorldCenter.HasValue)
+        {
+            var followerScreenPos = Vector2.Transform(followerWorldCenter.Value, cameraViewMatrix);
+            var followerUv = new Vector2(
+                followerScreenPos.X / _virtualWidth,
+                followerScreenPos.Y / _virtualHeight);
+            _effect.Parameters["FollowerCenter"].SetValue(followerUv);
+        }
+        else
+        {
+            _effect.Parameters["FollowerCenter"].SetValue(new Vector2(-1f, -1f));
+        }
 
         _graphicsDevice.SetRenderTarget(sceneRenderTarget);
 
