@@ -94,7 +94,7 @@ public sealed class GameplayScreen : IGameScreen
     private Firepit[] _firepits;
     private Texture2D _smallFireSpriteSheet;
     private Texture2D _cozyLakeCabinTexture;
-    private Boulder[] _cozyLakeCabins;
+    private Cabin[] _cozyLakeCabins;
     private Boulder[] _boulders;
     private Boulder[] _sunkenLogs;
     private Boulder[] _underwaterSunkenLogs;
@@ -102,8 +102,8 @@ public sealed class GameplayScreen : IGameScreen
     private SunkenChest[] _underwaterSunkenChests;
     private FlatShoreDepthSimulator[] _flatShoreDepthSimulators;
     private Boulder[] _seaweeds;
-    private Boulder[] _pineTrees;
-    private Boulder[] _birchTrees;
+    private Tree[] _pineTrees;
+    private Tree[] _birchTrees;
     private Dock[] _docks;
     private Boulder[] _dockLegsLeft;
     private WorldCollisionMap _collisionMap;
@@ -126,7 +126,7 @@ public sealed class GameplayScreen : IGameScreen
     private bool _isPlayerOccluded;
     private bool _isFollowerOccluded;
     private RenderTarget2D _previousRenderTarget;
-    private bool _showCollisionBounds;
+    private int _debugOverlayMode;
     private RippleSystem _rippleSystem;
     private readonly IMusicManager _musicManager = new MusicManager();
     private HudRenderer _hudRenderer;
@@ -231,9 +231,9 @@ public sealed class GameplayScreen : IGameScreen
         _flatShoreDepthSimulators = PropFactory.CreateFlatShoreDepthSimulators(flatShoreDepthSimulatorTexture, _worldRenderer.PropPlacements);
         _seaweeds = PropFactory.CreateSeaweeds(seaweedTextures, _worldRenderer.PropPlacements);
         _firepits = PropFactory.CreateFirepits(_firepitTexture, _smallFireSpriteSheet, _worldRenderer.PropPlacements);
-        _cozyLakeCabins = PropFactory.CreatePropsByType(_cozyLakeCabinTexture, _worldRenderer.PropPlacements, "cozy-lake-cabin", isUnderwater: false);
-        _pineTrees = PropFactory.CreatePropsByType(pineTreeTexture, _worldRenderer.PropPlacements, "pine-tree", isUnderwater: false);
-        _birchTrees = PropFactory.CreatePropsByType(birchTreeTexture, _worldRenderer.PropPlacements, "birch-tree", isUnderwater: false);
+        _cozyLakeCabins = PropFactory.CreateCabins(_cozyLakeCabinTexture, PropFactory.CozyCabinCollisionBoxes, _worldRenderer.PropPlacements, "cozy-lake-cabin");
+        _pineTrees = PropFactory.CreateTrees(pineTreeTexture, PropFactory.PineTreeCollisionBoxes, _worldRenderer.PropPlacements, "pine-tree");
+        _birchTrees = PropFactory.CreateTrees(birchTreeTexture, PropFactory.BirchTreeCollisionBoxes, _worldRenderer.PropPlacements, "birch-tree");
         _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
         _particleManager = new ParticleManager(MaxParticleCount);
         for (var i = 0; i < _firepits.Length; i++)
@@ -242,6 +242,9 @@ public sealed class GameplayScreen : IGameScreen
             _firepits[i].AttachSparkEmitter(new ParticleEmitter(_particleManager, FireSparkProfile));
         }
         var propObstacleBounds = PropFactory.MergeRectangleArrays(PropFactory.GetBoulderBounds(_boulders), PropFactory.GetFirepitBounds(_firepits));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_pineTrees));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_birchTrees));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetCabinCollisionBounds(_cozyLakeCabins));
         _collisionMap = new WorldCollisionMap(_worldRenderer, PropFactory.MergeObstacleBounds(propObstacleBounds, _worldRenderer.ColliderBounds), PropFactory.GetDockBounds(_docks));
         _camera.LookAt(_player.Center);
 
@@ -344,7 +347,7 @@ public sealed class GameplayScreen : IGameScreen
 
         if (input.IsPressed(InputAction.ToggleCollisionDebug))
         {
-            _showCollisionBounds = !_showCollisionBounds;
+            _debugOverlayMode = (_debugOverlayMode + 1) % 3;
         }
 
         _player.Update(gameTime, input, _collisionMap);
@@ -540,10 +543,6 @@ public sealed class GameplayScreen : IGameScreen
             DrawWorldEntities(mapHeight, behindCutoff, EntityDepthFilter.BehindOrAtPlayer);
             _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, followerDepth);
             _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, playerDepth);
-            if (_showCollisionBounds)
-            {
-                DrawCollisionBounds();
-            }
             _worldSpriteBatch.End();
 
             // --- Pass 4b: Entities in front of shallowest occluded character → occluder render target ---
@@ -574,10 +573,19 @@ public sealed class GameplayScreen : IGameScreen
             DrawWorldEntities(mapHeight, playerDepth, EntityDepthFilter.All);
             _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, followerDepth);
             _player.Draw(_worldSpriteBatch, _playerAnimator, _playerSpriteSheet, playerDepth);
-            if (_showCollisionBounds)
-            {
-                DrawCollisionBounds();
-            }
+            _worldSpriteBatch.End();
+        }
+
+        // --- Debug overlay: collision bounds (Deferred so they render on top of all entities) ---
+        // Mode 0 = off, Mode 1 = grid + bounds, Mode 2 = bounds only
+        if (_debugOverlayMode > 0)
+        {
+            _worldSpriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp,
+                transformMatrix: worldMatrix);
+            DrawCollisionBounds();
             _worldSpriteBatch.End();
         }
 
@@ -661,12 +669,17 @@ public sealed class GameplayScreen : IGameScreen
 
     private void DrawCollisionBounds()
     {
-        _debugRenderer.DrawTileGrid(
-            _worldSpriteBatch,
-            _worldRenderer.MapPixelWidth,
-            _worldRenderer.MapPixelHeight,
-            _worldRenderer.TileWidthPixels,
-            _worldRenderer.TileHeightPixels);
+        // Mode 1 = grid + bounds, Mode 2 = bounds only
+        if (_debugOverlayMode == 1)
+        {
+            _debugRenderer.DrawTileGrid(
+                _worldSpriteBatch,
+                _worldRenderer.MapPixelWidth,
+                _worldRenderer.MapPixelHeight,
+                _worldRenderer.TileWidthPixels,
+                _worldRenderer.TileHeightPixels);
+        }
+
         _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _player.FootBounds, Color.Yellow);
         _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _player.Bounds, Color.OrangeRed);
         _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _follower.Bounds, Color.Cyan);
@@ -679,6 +692,30 @@ public sealed class GameplayScreen : IGameScreen
         for (var i = 0; i < _firepits.Length; i++)
         {
             _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _firepits[i].Bounds, Color.Red);
+        }
+
+        for (var i = 0; i < _pineTrees.Length; i++)
+        {
+            for (var j = 0; j < _pineTrees[i].CollisionBoxCount; j++)
+            {
+                _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _pineTrees[i].GetCollisionBounds(j), Color.LimeGreen);
+            }
+        }
+
+        for (var i = 0; i < _birchTrees.Length; i++)
+        {
+            for (var j = 0; j < _birchTrees[i].CollisionBoxCount; j++)
+            {
+                _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _birchTrees[i].GetCollisionBounds(j), Color.LimeGreen);
+            }
+        }
+
+        for (var i = 0; i < _cozyLakeCabins.Length; i++)
+        {
+            for (var j = 0; j < _cozyLakeCabins[i].CollisionBoxCount; j++)
+            {
+                _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _cozyLakeCabins[i].GetCollisionBounds(j), Color.Orange);
+            }
         }
 
         var colliderBounds = _worldRenderer.ColliderBounds;

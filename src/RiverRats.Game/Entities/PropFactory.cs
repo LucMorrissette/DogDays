@@ -18,6 +18,50 @@ internal static class PropFactory
     internal const float FirepitAttachDistancePixels = 24f;
     internal const float FirepitAttachDistanceSquared = FirepitAttachDistancePixels * FirepitAttachDistancePixels;
 
+    /// <summary>
+    /// Collision boxes for pine trees relative to the 80×128 sprite.
+    /// Multiple rectangles hug the trunk shape from the narrow mid-section
+    /// down to the wider root base.
+    /// </summary>
+    internal static readonly Rectangle[] PineTreeCollisionBoxes =
+    [
+        new(33, 110, 15, 9),   // Narrow trunk above base
+        new(25, 119, 31, 6),   // Main trunk base strip
+        new(29, 115, 4, 4),    // Left bark edge
+        new(49, 114, 3, 5),    // Right bark edge
+        new(36, 125, 10, 3),   // Right root extension
+    ];
+
+    /// <summary>
+    /// Collision boxes for birch trees relative to the 98×128 sprite.
+    /// Multiple rectangles hug the birch trunk from the narrow mid-section
+    /// down to the root flare.
+    /// </summary>
+    internal static readonly Rectangle[] BirchTreeCollisionBoxes =
+    [
+        new(33, 107, 15, 21),  // Main trunk column
+        new(47, 112, 3, 8),    // Right bark edge
+        new(51, 116, 3, 4),    // Far right bark
+        new(47, 120, 10, 5),   // Right root flare
+        new(25, 120, 8, 6),    // Left root flare
+        new(29, 116, 4, 4),    // Left bark edge
+    ];
+
+    /// <summary>
+    /// Collision boxes for cozy lake cabins relative to the 160×109 sprite.
+    /// Multiple rectangles form the building footprint, leaving the porch
+    /// steps (bottom-right) walkable.
+    /// </summary>
+    internal static readonly Rectangle[] CozyCabinCollisionBoxes =
+    [
+        new(14, 57, 135, 20),  // Main wall strip across the front
+        new(14, 73, 70, 18),   // Lower-left flower bed area
+        new(3, 82, 15, 12),    // Left corner flower nook
+        new(0, 89, 97, 20),    // Bottom-left flower bed
+        new(121, 90, 40, 18),  // Bottom-right flower bed (before porch steps)
+        new(127, 74, 29, 19),  // Right wall beside porch
+    ];
+
     internal static Boulder[] CreateBoulders(Texture2D boulderTexture, IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
     {
         var boulders = new List<Boulder>(placements.Count);
@@ -292,6 +336,100 @@ internal static class PropFactory
         for (var i = 0; i < firepits.Length; i++)
         {
             bounds[i] = firepits[i].Bounds;
+        }
+
+        return bounds;
+    }
+
+    internal static Tree[] CreateTrees(
+        Texture2D texture,
+        Rectangle[] localCollisionBoxes,
+        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements,
+        string propType)
+    {
+        var trees = new List<Tree>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!string.Equals(placement.PropType, propType, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (placement.IsUnderwater)
+            {
+                continue;
+            }
+
+            trees.Add(new Tree(placement.Position, texture, localCollisionBoxes));
+        }
+
+        return trees.ToArray();
+    }
+
+    internal static Cabin[] CreateCabins(
+        Texture2D texture,
+        Rectangle[] localCollisionBoxes,
+        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements,
+        string propType)
+    {
+        var cabins = new List<Cabin>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!string.Equals(placement.PropType, propType, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (placement.IsUnderwater)
+            {
+                continue;
+            }
+
+            cabins.Add(new Cabin(placement.Position, texture, localCollisionBoxes));
+        }
+
+        return cabins.ToArray();
+    }
+
+    internal static Rectangle[] GetTreeCollisionBounds(Tree[] trees)
+    {
+        var totalCount = 0;
+        for (var i = 0; i < trees.Length; i++)
+        {
+            totalCount += trees[i].CollisionBoxCount;
+        }
+
+        var bounds = new Rectangle[totalCount];
+        var offset = 0;
+        for (var i = 0; i < trees.Length; i++)
+        {
+            for (var j = 0; j < trees[i].CollisionBoxCount; j++)
+            {
+                bounds[offset++] = trees[i].GetCollisionBounds(j);
+            }
+        }
+
+        return bounds;
+    }
+
+    internal static Rectangle[] GetCabinCollisionBounds(Cabin[] cabins)
+    {
+        var totalCount = 0;
+        for (var i = 0; i < cabins.Length; i++)
+        {
+            totalCount += cabins[i].CollisionBoxCount;
+        }
+
+        var bounds = new Rectangle[totalCount];
+        var offset = 0;
+        for (var i = 0; i < cabins.Length; i++)
+        {
+            for (var j = 0; j < cabins[i].CollisionBoxCount; j++)
+            {
+                bounds[offset++] = cabins[i].GetCollisionBounds(j);
+            }
         }
 
         return bounds;

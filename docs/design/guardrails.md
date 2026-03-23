@@ -184,6 +184,7 @@ This checklist is derived from the most frequent and impactful violations found 
 #### Entity Contracts
 - [ ] **New world-placed entities implement `IWorldProp`.** Any entity that exists in world space, has a position and bounds, and is drawn in the world pass must implement `IWorldProp`. *(Audit: CC-1 — 8 entity types with no shared interface)*
 - [ ] **Entity Draw methods accept `layerDepth` parameter.** Y-sorting requires consistent depth parameterization. *(Audit: FS-3 — `FlatShoreDepthSimulator` missing `layerDepth`)*
+- [ ] **Solid props define collision boxes in code, not in the tilemap.** New entity types that block player movement (trees, buildings, etc.) must define their collision area as a `localCollisionBox` `Rectangle` relative to the sprite origin, stored as a `static readonly` constant in `PropFactory`. **Do not** hand-place collider rectangles in the TMX `Colliders` layer for props — that approach does not scale. Use `Tree` or `Cabin` as the entity class (or create a new entity following the same pattern), and merge collision bounds in `GameplayScreen.LoadContent()` via `PropFactory.GetTreeCollisionBounds()` / `PropFactory.GetCabinCollisionBounds()`. The TMX `Colliders` layer should only contain terrain/world-boundary colliders.
 
 #### Structural Health
 - [ ] **File is under 750 lines.** See §30 for thresholds and actions. *(Audit: GS-01 — `GameplayScreen` at 1,234 lines)*
@@ -278,3 +279,4 @@ RiverRats.Tests.Helpers           — Test helper namespace
 | No magic numbers | Code review judgment call on numeric literals | Advisory — extract to constants |
 | Double-underscore test naming | Grep test methods for `__` pattern compliance | Advisory — rename non-compliant methods |
 | `IWorldProp` on world entities | Check entity classes for interface implementation | Yes — implement before merging |
+| Solid prop collision in code | Verify no new prop-specific rectangles in TMX `Colliders` layer; collision boxes defined in `PropFactory` | Yes — define in code, not tilemap |
