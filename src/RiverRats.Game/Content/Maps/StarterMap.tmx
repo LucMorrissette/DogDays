@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="7" nextobjectid="142">
+<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="7" nextobjectid="195">
  <tileset firstgid="1" source="../Tilesets/Terrain.tsx"/>
  <tileset firstgid="50" source="../Tilesets/Props.tsx"/>
  <layer id="1" name="Water/Bottom" width="32" height="20" locked="1">
@@ -50,16 +50,16 @@
 24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24,24
 </data>
  </layer>
- <layer id="3" name="Ground" width="32" height="20" locked="1">
+ <layer id="3" name="Ground" width="32" height="20">
   <data encoding="csv">
 1,21,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 1,20,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 1,20,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 22,7,18,19,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 1,20,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-15,7,13,13,12,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-14,7,7,7,7,13,19,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-16,7,7,17,10,23,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+15,7,13,13,12,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,20,1,1,1,1,1,1,
+14,7,7,7,7,13,19,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,20,1,1,1,1,1,1,
+16,7,7,17,10,23,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,23,1,1,1,1,1,1,
 1,16,10,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,21,1,1,1,1,1,1,1,1,1,1,1,1,
 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,20,1,1,1,1,1,1,1,1,1,1,1,1,
 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,20,1,1,1,1,1,1,1,1,1,1,1,1,
@@ -139,6 +139,40 @@
   <object id="139" gid="64" x="682.396" y="301.329" width="98" height="128"/>
   <object id="140" gid="64" x="473.347" y="370.088" width="98" height="128"/>
   <object id="141" gid="64" x="816.033" y="256.414" width="98" height="128"/>
+  <object id="151" gid="71" x="511" y="204" width="77" height="128"/>
+  <object id="152" gid="69" x="703" y="221" width="137" height="128"/>
+  <object id="153" gid="72" x="355" y="505" width="128" height="128"/>
+  <object id="157" gid="20" x="800" y="164" width="32" height="32"/>
+  <object id="158" gid="69" x="835" y="242" width="137" height="128"/>
+  <object id="160" gid="66" x="812" y="243" width="70" height="128"/>
+  <object id="161" gid="72" x="784" y="218" width="128" height="128"/>
+  <object id="163" gid="71" x="874" y="256" width="77" height="128"/>
+  <object id="164" gid="69" x="883" y="258" width="137" height="128"/>
+  <object id="165" gid="70" x="885" y="208" width="112" height="128"/>
+  <object id="166" gid="70" x="696" y="165" width="112" height="128"/>
+  <object id="167" gid="71" x="757" y="163" width="77" height="128"/>
+  <object id="168" gid="71" x="912" y="155" width="77" height="128"/>
+  <object id="169" gid="71" x="703" y="82" width="77" height="128"/>
+  <object id="170" gid="69" x="705" y="119" width="137" height="128"/>
+  <object id="171" gid="69" x="804" y="119" width="137" height="128"/>
+  <object id="172" gid="69" x="815" y="154" width="137" height="128"/>
+  <object id="173" gid="69" x="886" y="123" width="137" height="128"/>
+  <object id="174" gid="72" x="942" y="124" width="128" height="128"/>
+  <object id="175" gid="72" x="948" y="196" width="128" height="128"/>
+  <object id="176" gid="65" x="947" y="266" width="95" height="127"/>
+  <object id="182" gid="73" x="879" y="320" width="6" height="11"/>
+  <object id="183" gid="73" x="907" y="305" width="6" height="11"/>
+  <object id="184" gid="73" x="872" y="293" width="9" height="16"/>
+  <object id="185" gid="73" x="928" y="289" width="9" height="16"/>
+  <object id="186" gid="73" x="937" y="313" width="9" height="16"/>
+  <object id="187" gid="73" x="926" y="327" width="9" height="16"/>
+  <object id="188" gid="73" x="893" y="293" width="9" height="16"/>
+  <object id="189" gid="65" x="123" y="204" width="95" height="127"/>
+  <object id="190" gid="66" x="221" y="203" width="70" height="128"/>
+  <object id="191" gid="67" x="47" y="365" width="97" height="128"/>
+  <object id="192" gid="68" x="165" y="361" width="144" height="128"/>
+  <object id="193" gid="69" x="297" y="165" width="137" height="128"/>
+  <object id="194" gid="70" x="195" y="501" width="112" height="128"/>
  </objectgroup>
  <objectgroup id="6" name="Colliders">
   <object id="33" x="1" y="527" width="598" height="112"/>

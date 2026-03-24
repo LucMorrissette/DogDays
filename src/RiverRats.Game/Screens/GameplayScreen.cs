@@ -36,6 +36,8 @@ public sealed class GameplayScreen : IGameScreen
     private const float CabinSortAnchorOffsetPixels = 20f;
     private const float PineTreeSortAnchorOffsetPixels = 10f;
     private const float BirchTreeSortAnchorOffsetPixels = 10f;
+    private const float DeadTreeSortAnchorOffsetPixels = 10f;
+    private const float DeciduousTreeSortAnchorOffsetPixels = 10f;
     private static readonly WaterShaderConfig WaterShader = WaterShaderConfig.Default;
     private static readonly FollowerMovementConfig FollowerConfig = new();
     private static readonly Vector2 FollowerStartOffset = new(0f, FollowerConfig.FollowDistancePixels);
@@ -96,6 +98,7 @@ public sealed class GameplayScreen : IGameScreen
     private Texture2D _cozyLakeCabinTexture;
     private Cabin[] _cozyLakeCabins;
     private Boulder[] _boulders;
+    private Boulder[] _gardenGnomes;
     private Boulder[] _sunkenLogs;
     private Boulder[] _underwaterSunkenLogs;
     private SunkenChest[] _sunkenChests;
@@ -104,6 +107,8 @@ public sealed class GameplayScreen : IGameScreen
     private Boulder[] _seaweeds;
     private Tree[] _pineTrees;
     private Tree[] _birchTrees;
+    private Tree[] _deadTrees;
+    private Tree[] _deciduousTrees;
     private Dock[] _docks;
     private Boulder[] _dockLegsLeft;
     private WorldCollisionMap _collisionMap;
@@ -195,6 +200,34 @@ public sealed class GameplayScreen : IGameScreen
         _cozyLakeCabinTexture = _content.Load<Texture2D>("Sprites/cozy_lake_cabin");
         var pineTreeTexture = _content.Load<Texture2D>("Sprites/pine-tree");
         var birchTreeTexture = _content.Load<Texture2D>("Sprites/birch-tree");
+        var deadTreeTextures = new[]
+        {
+            _content.Load<Texture2D>("Sprites/dead-tree1"),
+            _content.Load<Texture2D>("Sprites/dead-tree2"),
+            _content.Load<Texture2D>("Sprites/dead-tree3"),
+            _content.Load<Texture2D>("Sprites/dead-tree4"),
+        };
+        var deadTreeCollisionBoxes = new[]
+        {
+            PropFactory.DeadTree1CollisionBoxes,
+            PropFactory.DeadTree2CollisionBoxes,
+            PropFactory.DeadTree3CollisionBoxes,
+            PropFactory.DeadTree4CollisionBoxes,
+        };
+        var deciduousTreeTextures = new[]
+        {
+            _content.Load<Texture2D>("Sprites/deciduous-tree1"),
+            _content.Load<Texture2D>("Sprites/deciduous-tree2"),
+            _content.Load<Texture2D>("Sprites/deciduous-tree3"),
+            _content.Load<Texture2D>("Sprites/deciduous-tree4"),
+        };
+        var deciduousTreeCollisionBoxes = new[]
+        {
+            PropFactory.DeciduousTree1CollisionBoxes,
+            PropFactory.DeciduousTree2CollisionBoxes,
+            PropFactory.DeciduousTree3CollisionBoxes,
+            PropFactory.DeciduousTree4CollisionBoxes,
+        };
         _playerAnimator = new SpriteAnimator(
             PlayerFramePixels, PlayerFramePixels,
             WalkFramesPerDirection, WalkFrameDuration);
@@ -221,6 +254,7 @@ public sealed class GameplayScreen : IGameScreen
             FollowerConfig);
 
         _boulders = PropFactory.CreateBoulders(_boulderTexture, _worldRenderer.PropPlacements);
+        _gardenGnomes = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/garden-gnome"), _worldRenderer.PropPlacements, "garden-gnome", isUnderwater: false);
         _docks = PropFactory.CreateDocks(_dockTexture, _worldRenderer.PropPlacements);
         _dockLegsLeft = PropFactory.CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: false);
         _surfaceReachDockLegsLeft = PropFactory.CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: true);
@@ -234,6 +268,8 @@ public sealed class GameplayScreen : IGameScreen
         _cozyLakeCabins = PropFactory.CreateCabins(_cozyLakeCabinTexture, PropFactory.CozyCabinCollisionBoxes, _worldRenderer.PropPlacements, "cozy-lake-cabin");
         _pineTrees = PropFactory.CreateTrees(pineTreeTexture, PropFactory.PineTreeCollisionBoxes, _worldRenderer.PropPlacements, "pine-tree");
         _birchTrees = PropFactory.CreateTrees(birchTreeTexture, PropFactory.BirchTreeCollisionBoxes, _worldRenderer.PropPlacements, "birch-tree");
+        _deadTrees = PropFactory.CreateVariantTrees(deadTreeTextures, deadTreeCollisionBoxes, _worldRenderer.PropPlacements, "dead-tree");
+        _deciduousTrees = PropFactory.CreateVariantTrees(deciduousTreeTextures, deciduousTreeCollisionBoxes, _worldRenderer.PropPlacements, "deciduous-tree");
         _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
         _particleManager = new ParticleManager(MaxParticleCount);
         for (var i = 0; i < _firepits.Length; i++)
@@ -244,6 +280,8 @@ public sealed class GameplayScreen : IGameScreen
         var propObstacleBounds = PropFactory.MergeRectangleArrays(PropFactory.GetBoulderBounds(_boulders), PropFactory.GetFirepitBounds(_firepits));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_pineTrees));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_birchTrees));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_deadTrees));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_deciduousTrees));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetCabinCollisionBounds(_cozyLakeCabins));
         _collisionMap = new WorldCollisionMap(_worldRenderer, PropFactory.MergeObstacleBounds(propObstacleBounds, _worldRenderer.ColliderBounds), PropFactory.GetDockBounds(_docks));
         _camera.LookAt(_player.Center);
@@ -710,6 +748,22 @@ public sealed class GameplayScreen : IGameScreen
             }
         }
 
+        for (var i = 0; i < _deadTrees.Length; i++)
+        {
+            for (var j = 0; j < _deadTrees[i].CollisionBoxCount; j++)
+            {
+                _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _deadTrees[i].GetCollisionBounds(j), Color.LimeGreen);
+            }
+        }
+
+        for (var i = 0; i < _deciduousTrees.Length; i++)
+        {
+            for (var j = 0; j < _deciduousTrees[i].CollisionBoxCount; j++)
+            {
+                _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _deciduousTrees[i].GetCollisionBounds(j), Color.LimeGreen);
+            }
+        }
+
         for (var i = 0; i < _cozyLakeCabins.Length; i++)
         {
             for (var j = 0; j < _cozyLakeCabins[i].CollisionBoxCount; j++)
@@ -859,6 +913,13 @@ public sealed class GameplayScreen : IGameScreen
                 _boulders[i].Draw(_worldSpriteBatch, depth);
         }
 
+        for (var i = 0; i < _gardenGnomes.Length; i++)
+        {
+            var depth = _gardenGnomes[i].Bounds.Bottom / mapHeight;
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _gardenGnomes[i].Draw(_worldSpriteBatch, depth);
+        }
+
         // Docks always draw at depth 0 — always behind every sorted entity.
         if (filter != EntityDepthFilter.InFrontOfPlayer)
         {
@@ -910,6 +971,22 @@ public sealed class GameplayScreen : IGameScreen
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _birchTrees[i].Draw(_worldSpriteBatch, depth);
         }
+
+        for (var i = 0; i < _deadTrees.Length; i++)
+        {
+            var treeBounds = _deadTrees[i].Bounds;
+            var depth = (treeBounds.Bottom - DeadTreeSortAnchorOffsetPixels) / mapHeight;
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _deadTrees[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _deciduousTrees.Length; i++)
+        {
+            var treeBounds = _deciduousTrees[i].Bounds;
+            var depth = (treeBounds.Bottom - DeciduousTreeSortAnchorOffsetPixels) / mapHeight;
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _deciduousTrees[i].Draw(_worldSpriteBatch, depth);
+        }
     }
 
     private static bool PassesDepthFilter(float depth, float playerDepth, EntityDepthFilter filter)
@@ -950,6 +1027,20 @@ public sealed class GameplayScreen : IGameScreen
         {
             var depth = (_birchTrees[i].Bounds.Bottom - BirchTreeSortAnchorOffsetPixels) / mapHeight;
             if (depth > characterDepth && _birchTrees[i].Bounds.Contains(characterBounds))
+                return true;
+        }
+
+        for (var i = 0; i < _deadTrees.Length; i++)
+        {
+            var depth = (_deadTrees[i].Bounds.Bottom - DeadTreeSortAnchorOffsetPixels) / mapHeight;
+            if (depth > characterDepth && _deadTrees[i].Bounds.Contains(characterBounds))
+                return true;
+        }
+
+        for (var i = 0; i < _deciduousTrees.Length; i++)
+        {
+            var depth = (_deciduousTrees[i].Bounds.Bottom - DeciduousTreeSortAnchorOffsetPixels) / mapHeight;
+            if (depth > characterDepth && _deciduousTrees[i].Bounds.Contains(characterBounds))
                 return true;
         }
 

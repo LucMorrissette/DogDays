@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="98" tileheight="128" tilecount="15" columns="0">
+<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="160" tileheight="128" tilecount="24" columns="0">
   <tile id="0">
     <properties>
       <property name="propType" value="boulder"/>
@@ -98,5 +98,59 @@
       <property name="propType" value="birch-tree"/>
     </properties>
     <image source="../Sprites/birch-tree.png" width="98" height="128"/>
+  </tile>
+  <tile id="15">
+    <properties>
+      <property name="propType" value="dead-tree1"/>
+    </properties>
+    <image source="../Sprites/dead-tree1.png" width="95" height="127"/>
+  </tile>
+  <tile id="16">
+    <properties>
+      <property name="propType" value="dead-tree2"/>
+    </properties>
+    <image source="../Sprites/dead-tree2.png" width="70" height="128"/>
+  </tile>
+  <tile id="17">
+    <properties>
+      <property name="propType" value="dead-tree3"/>
+    </properties>
+    <image source="../Sprites/dead-tree3.png" width="97" height="128"/>
+  </tile>
+  <tile id="18">
+    <properties>
+      <property name="propType" value="dead-tree4"/>
+    </properties>
+    <image source="../Sprites/dead-tree4.png" width="91" height="128"/>
+  </tile>
+  <tile id="19">
+    <properties>
+      <property name="propType" value="deciduous-tree1"/>
+    </properties>
+    <image source="../Sprites/deciduous-tree1.png" width="137" height="128"/>
+  </tile>
+  <tile id="20">
+    <properties>
+      <property name="propType" value="deciduous-tree2"/>
+    </properties>
+    <image source="../Sprites/deciduous-tree2.png" width="112" height="128"/>
+  </tile>
+  <tile id="21">
+    <properties>
+      <property name="propType" value="deciduous-tree3"/>
+    </properties>
+    <image source="../Sprites/deciduous-tree3.png" width="77" height="128"/>
+  </tile>
+  <tile id="22">
+    <properties>
+      <property name="propType" value="deciduous-tree4"/>
+    </properties>
+    <image source="../Sprites/deciduous-tree4.png" width="128" height="128"/>
+  </tile>
+  <tile id="23">
+    <properties>
+      <property name="propType" value="garden-gnome"/>
+    </properties>
+    <image source="../Sprites/garden-gnome.png" width="9" height="16"/>
   </tile>
 </tileset>

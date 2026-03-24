@@ -48,6 +48,88 @@ internal static class PropFactory
     ];
 
     /// <summary>
+    /// Collision boxes for dead tree variant 1 relative to the 95×127 sprite.
+    /// Wide gnarled trunk with spreading base.
+    /// </summary>
+    internal static readonly Rectangle[] DeadTree1CollisionBoxes =
+    [
+        new(32, 113, 28, 15),  // Main trunk base
+        new(28, 110, 8, 7),    // Left bark edge
+        new(60, 112, 7, 5),    // Right bark edge
+    ];
+
+    /// <summary>
+    /// Collision boxes for dead tree variant 2 relative to the 70×128 sprite.
+    /// Narrow straight trunk.
+    /// </summary>
+    internal static readonly Rectangle[] DeadTree2CollisionBoxes =
+    [
+        new(24, 115, 20, 13),  // Main trunk base
+        new(20, 112, 6, 5),    // Left bark edge
+        new(43, 114, 5, 5),    // Right bark edge
+    ];
+
+    /// <summary>
+    /// Collision boxes for dead tree variant 3 relative to the 97×128 sprite.
+    /// Short stubby trunk with wide base.
+    /// </summary>
+    internal static readonly Rectangle[] DeadTree3CollisionBoxes =
+    [
+        new(24, 110, 48, 18),  // Main trunk base
+        new(20, 106, 8, 8),    // Left bark edge
+        new(68, 108, 8, 6),    // Right bark edge
+    ];
+
+    /// <summary>
+    /// Collision boxes for dead tree variant 4 relative to the 91×128 sprite.
+    /// Wide Y-shaped trunk.
+    /// </summary>
+    internal static readonly Rectangle[] DeadTree4CollisionBoxes =
+    [
+        new(30, 112, 34, 16),  // Main trunk base
+        new(24, 109, 10, 6),   // Left bark edge
+        new(62, 110, 8, 6),    // Right bark edge
+    ];
+
+    /// <summary>
+    /// Collision boxes for deciduous tree variant 1 relative to the 137×128 sprite.
+    /// Big wide oak canopy with thick trunk.
+    /// </summary>
+    internal static readonly Rectangle[] DeciduousTree1CollisionBoxes =
+    [
+        new(48, 108, 38, 20),  // Main trunk base
+    ];
+
+    /// <summary>
+    /// Collision boxes for deciduous tree variant 2 relative to the 112×128 sprite.
+    /// Medium oak with brown-green foliage.
+    /// </summary>
+    internal static readonly Rectangle[] DeciduousTree2CollisionBoxes =
+    [
+        new(40, 108, 30, 20),  // Main trunk base
+    ];
+
+    /// <summary>
+    /// Collision boxes for deciduous tree variant 3 relative to the 77×128 sprite.
+    /// Slender birch-like deciduous tree.
+    /// </summary>
+    internal static readonly Rectangle[] DeciduousTree3CollisionBoxes =
+    [
+        new(28, 112, 18, 16),  // Main trunk base
+    ];
+
+    /// <summary>
+    /// Collision boxes for deciduous tree variant 4 relative to the 128×128 sprite.
+    /// Round bushy shrub-tree.
+    /// </summary>
+    internal static readonly Rectangle[] DeciduousTree4CollisionBoxes =
+    [
+        new(46, 112, 32, 16),  // Main trunk base
+        new(40, 108, 10, 8),   // Left bark edge
+        new(76, 110, 8, 6),    // Right bark edge
+    ];
+
+    /// <summary>
     /// Collision boxes for cozy lake cabins relative to the 160×109 sprite.
     /// Multiple rectangles form the building footprint, leaving the porch
     /// steps (bottom-right) walkable.
@@ -362,6 +444,45 @@ internal static class PropFactory
             }
 
             trees.Add(new Tree(placement.Position, texture, localCollisionBoxes));
+        }
+
+        return trees.ToArray();
+    }
+
+    /// <summary>
+    /// Creates tree props from placements matching a numbered variant prefix
+    /// (e.g. "dead-tree1"–"dead-tree4" or "deciduous-tree1"–"deciduous-tree4").
+    /// Each variant uses its own texture and collision boxes.
+    /// </summary>
+    internal static Tree[] CreateVariantTrees(
+        Texture2D[] variantTextures,
+        Rectangle[][] variantCollisionBoxes,
+        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements,
+        string propTypePrefix)
+    {
+        var trees = new List<Tree>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!placement.PropType.StartsWith(propTypePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (placement.IsUnderwater)
+            {
+                continue;
+            }
+
+            // Parse variant index from prop type (dead-tree1 → 0, dead-tree2 → 1, etc.)
+            var lastChar = placement.PropType[^1];
+            var variantIndex = lastChar - '1';
+            if (variantIndex < 0 || variantIndex >= variantTextures.Length)
+            {
+                continue;
+            }
+
+            trees.Add(new Tree(placement.Position, variantTextures[variantIndex], variantCollisionBoxes[variantIndex]));
         }
 
         return trees.ToArray();
