@@ -59,7 +59,7 @@ public sealed class PauseScreen : IGameScreen
             KernelHeight = 0,
         });
         _fontSystem.AddFont(File.ReadAllBytes(
-            Path.Combine(_content.RootDirectory, "Fonts", "Nunito.ttf")));
+            Path.Combine(global::System.AppContext.BaseDirectory, _content.RootDirectory, "Fonts", "Nunito.ttf")));
     }
 
     public void Update(GameTime gameTime, IInputManager input)

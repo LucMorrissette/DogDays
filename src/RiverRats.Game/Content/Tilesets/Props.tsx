@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="160" tileheight="128" tilecount="28" columns="0">
+<tileset version="1.10" tiledversion="1.12.0" name="Props" tilewidth="160" tileheight="128" tilecount="37" columns="0">
   <tile id="0">
     <properties>
       <property name="propType" value="boulder"/>
@@ -176,5 +176,63 @@
       <property name="propType" value="log"/>
     </properties>
     <image source="../Sprites/log.png" width="96" height="32"/>
+  </tile>
+  <tile id="28">
+    <properties>
+      <property name="propType" value="front-door-closed"/>
+      <property name="suppressOcclusion" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/front-door-closed.png" width="20" height="32"/>
+  </tile>
+  <tile id="29">
+    <properties>
+      <property name="propType" value="front-door-open"/>
+      <property name="suppressOcclusion" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/front-door-open.png" width="20" height="32"/>
+  </tile>
+  <tile id="30">
+    <properties>
+      <property name="propType" value="welcome-mat"/>
+      <property name="suppressOcclusion" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/welcome-mat.png" width="37" height="32"/>
+  </tile>
+  <tile id="31">
+    <properties>
+      <property name="propType" value="area-rug"/>
+      <property name="suppressOcclusion" type="bool" value="true"/>
+    </properties>
+    <image source="../Sprites/area-rug.png" width="96" height="92"/>
+  </tile>
+  <tile id="32">
+    <properties>
+      <property name="propType" value="old-couch"/>
+    </properties>
+    <image source="../Sprites/old-couch.png" width="24" height="80"/>
+  </tile>
+  <tile id="33">
+    <properties>
+      <property name="propType" value="old-tv"/>
+    </properties>
+    <image source="../Sprites/old-tv.png" width="16" height="32"/>
+  </tile>
+  <tile id="34">
+    <properties>
+      <property name="propType" value="game-console"/>
+    </properties>
+    <image source="../Sprites/game-console.png" width="16" height="10"/>
+  </tile>
+  <tile id="35">
+    <properties>
+      <property name="propType" value="potted-plant-1"/>
+    </properties>
+    <image source="../Sprites/potted-plant-1.png" width="32" height="34"/>
+  </tile>
+  <tile id="36">
+    <properties>
+      <property name="propType" value="entertainment-shelf"/>
+    </properties>
+    <image source="../Sprites/entertainment-shelf.png" width="87" height="54"/>
   </tile>
 </tileset>

@@ -180,7 +180,7 @@ internal static class PropFactory
                 continue;
             }
 
-            boulders.Add(new Boulder(placement.Position, boulderTexture, placement.SuppressOcclusion));
+            boulders.Add(new Boulder(placement.Position, boulderTexture, placement.SuppressOcclusion, placement.RotationRadians));
         }
 
         return boulders.ToArray();
@@ -201,6 +201,35 @@ internal static class PropFactory
         }
 
         return docks.ToArray();
+    }
+
+    internal static FrontDoor[] CreateFrontDoors(
+        Texture2D closedTexture,
+        Texture2D openTexture,
+        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
+    {
+        var doors = new List<FrontDoor>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (placement.IsUnderwater)
+            {
+                continue;
+            }
+
+            if (string.Equals(placement.PropType, "front-door-closed", StringComparison.OrdinalIgnoreCase))
+            {
+                doors.Add(new FrontDoor(placement.Position, closedTexture, openTexture, startOpen: false, placement.SuppressOcclusion));
+                continue;
+            }
+
+            if (string.Equals(placement.PropType, "front-door-open", StringComparison.OrdinalIgnoreCase))
+            {
+                doors.Add(new FrontDoor(placement.Position, closedTexture, openTexture, startOpen: true, placement.SuppressOcclusion));
+            }
+        }
+
+        return doors.ToArray();
     }
 
     internal static Firepit[] CreateFirepits(
@@ -282,7 +311,8 @@ internal static class PropFactory
         IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements,
         string propType,
         bool isUnderwater,
-        bool reachesSurface = false)
+        bool reachesSurface = false,
+        int collisionHeightPixels = 0)
     {
         var props = new List<Boulder>(placements.Count);
         for (var i = 0; i < placements.Count; i++)
@@ -303,10 +333,63 @@ internal static class PropFactory
                 continue;
             }
 
-            props.Add(new Boulder(placement.Position, texture));
+            props.Add(new Boulder(placement.Position, texture, rotationRadians: placement.RotationRadians, collisionHeightPixels: collisionHeightPixels));
         }
 
         return props.ToArray();
+    }
+
+    /// <summary>
+    /// Creates garden gnome entities that hide behind the nearest tree when the player approaches.
+    /// </summary>
+    internal static GardenGnome[] CreateGardenGnomes(
+        Texture2D texture,
+        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements,
+        IReadOnlyList<Tree> trees)
+    {
+        var gnomes = new List<GardenGnome>();
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!string.Equals(placement.PropType, "garden-gnome", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (placement.IsUnderwater)
+            {
+                continue;
+            }
+
+            var hideTarget = FindNearestTreeCenter(placement.Position, texture, trees);
+            gnomes.Add(new GardenGnome(placement.Position, texture, hideTarget, placement.RotationRadians));
+        }
+
+        return gnomes.ToArray();
+    }
+
+    private static Vector2 FindNearestTreeCenter(Vector2 gnomePosition, Texture2D gnomeTexture, IReadOnlyList<Tree> trees)
+    {
+        var gnomeCenter = gnomePosition + new Vector2(gnomeTexture.Width * 0.5f, gnomeTexture.Height * 0.5f);
+        var bestDistSq = float.MaxValue;
+        var bestCenter = gnomeCenter - Vector2.UnitX * 20f; // fallback: hide to the left
+
+        for (var i = 0; i < trees.Count; i++)
+        {
+            var treeBounds = trees[i].Bounds;
+            var treeCenter = new Vector2(
+                treeBounds.X + treeBounds.Width * 0.5f,
+                treeBounds.Y + treeBounds.Height * 0.5f);
+
+            var distSq = Vector2.DistanceSquared(gnomeCenter, treeCenter);
+            if (distSq < bestDistSq)
+            {
+                bestDistSq = distSq;
+                bestCenter = treeCenter;
+            }
+        }
+
+        return bestCenter;
     }
 
     internal static SunkenChest[] CreateSunkenChests(
@@ -353,6 +436,75 @@ internal static class PropFactory
         return props.ToArray();
     }
 
+    /// <summary>
+    /// Creates area rug decorative floor props from placements with propType "area-rug".
+    /// These are purely decorative — no collision — and always rendered at ground depth.
+    /// </summary>
+    internal static Boulder[] CreateAreaRugs(
+        Texture2D texture,
+        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
+    {
+        var rugs = new List<Boulder>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!string.Equals(placement.PropType, "area-rug", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            rugs.Add(new Boulder(placement.Position, texture, suppressOcclusion: true, rotationRadians: placement.RotationRadians));
+        }
+
+        return rugs.ToArray();
+    }
+
+    /// <summary>
+    /// Creates old couch solid props from placements with propType "old-couch".
+    /// Blocks movement via full-texture collision bounds and participates in Y-sorting.
+    /// </summary>
+    internal static Boulder[] CreateCouches(
+        Texture2D texture,
+        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
+    {
+        var couches = new List<Boulder>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!string.Equals(placement.PropType, "old-couch", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            couches.Add(new Boulder(placement.Position, texture, suppressOcclusion: false, rotationRadians: placement.RotationRadians));
+        }
+
+        return couches.ToArray();
+    }
+
+    /// <summary>
+    /// Creates welcome mat decorative floor props from placements with propType "welcome-mat".
+    /// These are purely decorative — no collision — and rendered below other props via Y-sort.
+    /// </summary>
+    internal static Boulder[] CreateWelcomeMats(
+        Texture2D texture,
+        IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
+    {
+        var mats = new List<Boulder>(placements.Count);
+        for (var i = 0; i < placements.Count; i++)
+        {
+            var placement = placements[i];
+            if (!string.Equals(placement.PropType, "welcome-mat", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            mats.Add(new Boulder(placement.Position, texture, suppressOcclusion: true, rotationRadians: placement.RotationRadians));
+        }
+
+        return mats.ToArray();
+    }
+
     internal static Boulder[] CreateSeaweeds(
         Texture2D[] variantTextures,
         IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
@@ -374,7 +526,7 @@ internal static class PropFactory
                 continue;
             }
 
-            seaweeds.Add(new Boulder(placement.Position, variantTextures[variantIndex]));
+            seaweeds.Add(new Boulder(placement.Position, variantTextures[variantIndex], rotationRadians: placement.RotationRadians));
         }
 
         return seaweeds.ToArray();

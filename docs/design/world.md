@@ -51,6 +51,14 @@ This pairing gives each exit its own per-instance destination data without encod
 3. Add a `GetXxxCollisionBounds()` helper to `PropFactory`.
 4. Merge the collision bounds in `GameplayScreen.LoadContent()` via `PropFactory.MergeRectangleArrays()`.
 
+### Adding a decorative state-variant prop
+
+1. Add each authored sprite variant to `Content.mgcb` and expose it through `Tilesets/Props.tsx` with a distinct `propType` value.
+2. Create a focused `IWorldProp` implementation when the variants belong to one concept instead of routing the behavior through a generic catch-all prop.
+3. Add a factory helper in `PropFactory` that maps each `propType` variant to the correct texture while keeping placement data editor-driven.
+4. If gameplay needs to react to nearby actors, update the focused prop from `GameplayScreen.Update()` using world-space bounds and tile-sized thresholds rather than querying input directly inside the prop.
+5. Draw the resulting prop array from `GameplayScreen.DrawWorldEntities()` so the variants participate in the normal world sort order.
+
 <!-- Example format:
 | `TileMap` | Core tile data, collision queries, runtime modifications. |
 | `TileMapRenderer` | Tile rendering with per-layer support. |

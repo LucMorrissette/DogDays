@@ -11,6 +11,7 @@
 | **Music ownership** | Screen-owned (not a global service yet) | `MusicManager` is currently owned by the screen that needs it. Can be promoted to `Game.Services` later if multiple screens require music control. |
 | **Pause volume dimming** | `PauseScreen` sets volume to 20% on enter, restores to 100% on exit | Keeps music audible during pause without full silence. Volume levels are named constants in `PauseScreen`. |
 | **Content format** | MP3 via Content Pipeline | MP3 files processed by `Mp3Importer` + `SongProcessor`, accessed as `Song` objects via `content.Load<Song>()`. |
+| **One-shot SFX triggering** | Gameplay code edge-triggers `SoundEffect` playback when world state changes | Keeps one-shot sounds deterministic and avoids replaying the same SFX every frame while a state remains active. |
 
 ## Audio Classes
 

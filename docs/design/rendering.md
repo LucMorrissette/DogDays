@@ -142,5 +142,18 @@ These can be layered into the same shader without changing the integration point
 | `TiledWorldRenderer` | Wraps TMX/TSX map loading, deterministic weighted tile-variant drawing, and `Water/*` layer grouping for the distortion pass. |
 
 | `OcclusionRevealRenderer` | Manages a virtual-resolution render target for entities that sort in front of the player. Composites them back over the scene through the `OcclusionReveal` shader which applies a circular alpha-fade lens centred on the player, letting the player show through occluding props. |
+| `FishingRippleManager` | Manages event-driven water ripples, splash highlights, and spook rings for the fishing scene. Tracks up to 8 concentric distortion ripples, 4 expanding splash highlight rings, and 4 red spook rings, spawned by gameplay events (lure splash, fish strike, catch, twitch, bad cast). Writes ripple/splash/spook data to `FishingWater.fx` shader parameters. |
+
+### FishingWater Shader
+
+`FishingWater.fx` is a post-process pixel shader applied to the water tile layer of the side-view fishing scene. The fishing screen renders the `water` TMX layer to a render target and composites it back through this shader. Four composable effects:
+
+| Effect | Description |
+|---|---|
+| **Ambient wave distortion** | Multi-layer sine-wave UV displacement. Only applied below the water surface Y-threshold. Same math as `WaterDistortion.fx`. |
+| **Event ripples** | Up to 8 concentric ring distortion ripples that expand and fade, spawned by `FishingRippleManager`. Ripple rings extend slightly above the water surface for visibility. |
+| **Splash highlight rings** | Up to 4 additive brightness rings that expand from splash points and fade. Provide a bright "flash" at impact sites (lure landing, fish strike, catch). |
+| **Spook rings** | Up to 4 red-tinted expanding rings spawned on bad casts. Wider ring width and slower fade than splash highlights to convey a threatening "warning wave." Rendered as additive red/orange glow. |
+| **Underwater caustics** | Procedural overlapping sine-grid pattern that creates animated light patterns. Intensity increases with depth below the water surface. |
 
 *(Add entries as graphics classes are created — ScreenScaler, etc.)*

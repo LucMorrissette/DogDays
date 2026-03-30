@@ -124,8 +124,8 @@ public class Game1 : Microsoft.Xna.Framework.Game
             _crtEffect.Parameters["TextureSize"].SetValue(
                 new Vector2(_sceneRenderTarget.Width, _sceneRenderTarget.Height));
             _crtEffect.Parameters["DistortionAmount"].SetValue(0.075f);
-            _crtEffect.Parameters["ScanlineIntensity"].SetValue(0.25f);
-            _crtEffect.Parameters["VignetteStrength"].SetValue(0.3f);
+            _crtEffect.Parameters["ScanlineIntensity"].SetValue(0.20f);
+            _crtEffect.Parameters["VignetteStrength"].SetValue(0.25f);
             _crtEffect.Parameters["BorderColor"].SetValue(CrtBorderColor.ToVector3());
 
             _spriteBatch.Begin(effect: _crtEffect, samplerState: SamplerState.PointClamp);

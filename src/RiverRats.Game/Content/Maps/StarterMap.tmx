@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="9" nextobjectid="205">
+<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="10" nextobjectid="219">
  <tileset firstgid="1" source="../Tilesets/Terrain.tsx"/>
  <tileset firstgid="50" source="../Tilesets/Props.tsx"/>
  <layer id="1" name="Water/Bottom" width="32" height="20" locked="1">
@@ -179,21 +179,16 @@
   <object id="174" gid="72" x="942" y="124" width="128" height="128"/>
   <object id="175" gid="72" x="948" y="196" width="128" height="128"/>
   <object id="176" gid="65" x="947" y="266" width="95" height="127"/>
-  <object id="182" gid="73" x="879" y="320" width="6" height="11"/>
-  <object id="183" gid="73" x="907" y="305" width="6" height="11"/>
-  <object id="184" gid="73" x="872" y="293" width="9" height="16"/>
-  <object id="185" gid="73" x="928" y="289" width="9" height="16"/>
-  <object id="186" gid="73" x="937" y="313" width="9" height="16"/>
-  <object id="187" gid="73" x="926" y="327" width="9" height="16"/>
-  <object id="188" gid="73" x="893" y="293" width="9" height="16"/>
   <object id="189" gid="65" x="123" y="204" width="95" height="127"/>
   <object id="190" gid="66" x="221" y="203" width="70" height="128"/>
   <object id="191" gid="67" x="47" y="365" width="97" height="128"/>
   <object id="192" gid="68" x="165" y="361" width="144" height="128"/>
   <object id="193" gid="69" x="297" y="165" width="137" height="128"/>
   <object id="194" gid="70" x="195" y="501" width="112" height="128"/>
+  <object id="207" gid="73" x="778.97" y="206.182" width="9" height="16" rotation="23"/>
+  <object id="214" gid="78" x="797.5" y="388" width="20" height="32"/>
  </objectgroup>
- <objectgroup id="6" name="Colliders">
+ <objectgroup id="6" name="Colliders" locked="1">
   <object id="33" x="1" y="527" width="598" height="112"/>
   <object id="35" x="653" y="528" width="370" height="112"/>
   <object id="36" x="597" y="576" width="72" height="64"/>
@@ -209,9 +204,23 @@
     <property name="targetSpawnId" value="from-starter"/>
    </properties>
   </object>
+  <object id="217" x="800.182" y="383.364" width="18.7273" height="3.54545">
+   <properties>
+    <property name="targetMap" value="Maps/CabinIndoors"/>
+    <property name="targetSpawnId" value="from-outdoors"/>
+   </properties>
+  </object>
  </objectgroup>
- <objectgroup id="8" name="SpawnPoints">
+ <objectgroup id="8" name="SpawnPoints" locked="1">
   <object id="203" name="from-woods" x="799" y="217"/>
+  <object id="218" name="from-cabin-indoors" x="808" y="418"/>
   <object id="204" name="default" x="627" y="376"/>
+ </objectgroup>
+ <objectgroup id="9" name="FishingZones" locked="1">
+  <object id="206" x="600" y="563.727" width="52.4545" height="11.6364">
+   <properties>
+    <property name="facingDirection" value="down"/>
+   </properties>
+  </object>
  </objectgroup>
 </map>

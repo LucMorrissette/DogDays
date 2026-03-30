@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="10" height="7" tilewidth="32" tileheight="32" infinite="0" nextlayerid="5" nextobjectid="20">
+ <tileset firstgid="1" source="../Tilesets/CabinInterior.tsx"/>
+ <tileset firstgid="5" source="../Tilesets/Props.tsx"/>
+ <layer id="1" name="Ground" width="10" height="7">
+  <data encoding="csv">
+1,1,1,1,1,1,1,1,1,1,
+1,1,1,1,1,1,1,1,1,1,
+1,1,1,1,1,1,1,1,1,1,
+1,1,1,1,1,1,1,1,1,1,
+1,1,1,1,1,1,1,1,1,1,
+1,1,1,1,1,1,1,1,1,1,
+1,1,1,1,1,1,1,1,1,1
+</data>
+ </layer>
+ <objectgroup id="4" name="stuff">
+  <object id="5" gid="35" x="196.616" y="224.073" width="37" height="32"/>
+  <object id="14" gid="38" x="5.01222" y="162.715" width="25" height="48"/>
+  <object id="15" gid="39" x="31.2589" y="169.103" width="16" height="10"/>
+  <object id="16" gid="37" x="134.305" y="201.224" width="24" height="80"/>
+  <object id="17" gid="36" x="131.021" y="205.392" width="96" height="92" rotation="-90"/>
+  <object id="18" gid="40" x="2.05913" y="203.349" width="32" height="34"/>
+  <object id="19" gid="41" x="29.7328" y="115.874" width="96" height="70"/>
+ </objectgroup>
+ <objectgroup id="2" name="ZoneTriggers">
+  <object id="1" x="204.15" y="212.711" width="30" height="10.7655">
+   <properties>
+    <property name="targetMap" value="Maps/StarterMap"/>
+    <property name="targetSpawnId" value="from-cabin-indoors"/>
+   </properties>
+  </object>
+ </objectgroup>
+ <objectgroup id="3" name="SpawnPoints">
+  <object id="2" name="from-outdoors" x="205.279" y="173.906"/>
+  <object id="3" name="default" x="163.664" y="89.6302"/>
+ </objectgroup>
+</map>

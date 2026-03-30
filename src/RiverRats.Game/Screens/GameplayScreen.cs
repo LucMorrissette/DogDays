@@ -25,19 +25,23 @@ namespace RiverRats.Game.Screens;
 /// </summary>
 public sealed class GameplayScreen : IGameScreen
 {
+    private const float FrontDoorInvitationTileScale = 0.0125f;
     private const int PlayerFramePixels = 32;
     private const float PlayerMoveSpeedPixelsPerSecond = 96f;
     private const float PlayerAccelerationRate = 10f;
     private const int WalkFramesPerDirection = 4;
     private const float WalkFrameDuration = 0.15f;
     private const float HudFontSize = 14f;
-    private const float DayNightCycleDurationSeconds = 120f;
+    private const float DayNightCycleDurationSeconds = 600f;
     private const float DayNightCycleStartProgress = 0.30f;
     private const int GradientStripCount = 32;
     private const int MaxFireflyLights = 32;
     private const int MaxParticleCount = 512;
     private const float CabinSortAnchorOffsetPixels = 52f;
     private const float PineTreeSortAnchorOffsetPixels = 10f;
+    private const float FishingPromptUiScale = 1.15f;
+    private const float FishingPromptHeadGapPixels = 6f;
+    private const int FishingInteractionReachPixels = 16;
     private const float BirchTreeSortAnchorOffsetPixels = 10f;
     private const float DeadTreeSortAnchorOffsetPixels = 10f;
     private const float DeciduousTreeSortAnchorOffsetPixels = 10f;
@@ -146,6 +150,8 @@ public sealed class GameplayScreen : IGameScreen
     private const float RedOrbCollectSfxVolume = 0.82f;
     private const float BomberBlastRadiusSq = 48f * 48f;
     private const float BomberDeathTrauma = 0.12f;
+    private const float DoorOpenSfxVolume = 0.48f;
+    private const float DoorCloseSfxVolume = 0.42f;
 
     // Health pickup pool for the forest survival minigame.
     private const int MaxHealthPickups = 2;
@@ -180,6 +186,7 @@ public sealed class GameplayScreen : IGameScreen
     private readonly Action _requestExit;
     private readonly string _mapAssetName;
     private readonly string _spawnPointId;
+    private readonly Vector2? _spawnPosition;
     private readonly bool _fadeInFromBlack;
     private readonly string _songName;
 
@@ -194,6 +201,8 @@ public sealed class GameplayScreen : IGameScreen
     private Texture2D _followerSpriteSheet;
     private Texture2D _boulderTexture;
     private Texture2D _dockTexture;
+    private Texture2D _frontDoorClosedTexture;
+    private Texture2D _frontDoorOpenTexture;
     private Texture2D _dockLegLeftTexture;
     private Texture2D _sunkenLogTexture;
     private Texture2D _sunkenChestTexture;
@@ -203,7 +212,14 @@ public sealed class GameplayScreen : IGameScreen
     private Texture2D _cozyLakeCabinTexture;
     private Cabin[] _cozyLakeCabins;
     private Boulder[] _boulders;
-    private Boulder[] _gardenGnomes;
+    private GardenGnome[] _gardenGnomes;
+    private Boulder[] _welcomeMats;
+    private Boulder[] _areaRugs;
+    private Boulder[] _couches;
+    private Boulder[] _oldTvs;
+    private Boulder[] _gameConsoles;
+    private Boulder[] _pottedPlants1;
+    private Boulder[] _entertainmentShelves;
     private Boulder[] _sunkenLogs;
     private Boulder[] _underwaterSunkenLogs;
     private SunkenChest[] _sunkenChests;
@@ -216,6 +232,7 @@ public sealed class GameplayScreen : IGameScreen
     private Tree[] _deciduousTrees;
     private Tree[] _bushes;
     private Dock[] _docks;
+    private FrontDoor[] _frontDoors;
     private Boulder[] _dockLegsLeft;
     private WorldCollisionMap _collisionMap;
     private DayNightCycle _dayNightCycle;
@@ -275,19 +292,26 @@ public sealed class GameplayScreen : IGameScreen
     private readonly SoundEffect[] _playerHurtSfx = new SoundEffect[PlayerHurtSfxCount];
     private readonly SoundEffect[] _orbCollectVariationSfx = new SoundEffect[OrbCollectVariationSfxCount];
     private readonly SoundEffect[] _redOrbCollectVariationSfx = new SoundEffect[RedOrbCollectVariationSfxCount];
+    private SoundEffect _doorOpenSfx;
+    private SoundEffect _doorCloseSfx;
     private readonly Random _sfxRng = new Random();
     private readonly IMusicManager _musicManager = new MusicManager();
+    private Texture2D _hookIconTexture;
+    private bool _playerInFishingZone;
     private HudRenderer _hudRenderer;
     private ForestHudRenderer _forestHudRenderer;
     private FontSystem _fontSystem;
     private readonly ScreenManager _screenManager;
     private readonly bool _hasDayNightCycle;
+    private readonly bool _hasCloudShadows;
+    private readonly bool _hasAmbientFireflies;
     private readonly float _dayNightStartProgress;
     private readonly FollowerMovementConfig _followerConfig;
     private FadeState _fadeState;
     private float _fadeAlpha;
     private float _fadeHoldTimer;
     private ZoneTransitionRequest? _pendingZoneTransition;
+    private bool _pendingFishingTransition;
 
     /// <inheritdoc />
     public bool IsTransparent => false;
@@ -308,6 +332,7 @@ public sealed class GameplayScreen : IGameScreen
     /// <param name="spawnPointId">Name of the spawn point to place the player at, or null for map center.</param>
     /// <param name="fadeInFromBlack">When true, the screen starts fully black and fades in.</param>
     /// <param name="dayNightStartProgress">Starting cycle progress (0–1). Pass the previous zone's progress to preserve time across transitions.</param>
+    /// <param name="spawnPosition">Exact world-space position to place the player at. Overrides spawnPointId when set.</param>
     public GameplayScreen(
         GraphicsDevice graphicsDevice,
         ContentManager content,
@@ -318,7 +343,8 @@ public sealed class GameplayScreen : IGameScreen
         string mapAssetName = "Maps/StarterMap",
         string spawnPointId = null,
         bool fadeInFromBlack = false,
-        float dayNightStartProgress = DayNightCycleStartProgress)
+        float dayNightStartProgress = DayNightCycleStartProgress,
+        Vector2? spawnPosition = null)
     {
         _graphicsDevice = graphicsDevice;
         _content = content;
@@ -328,9 +354,12 @@ public sealed class GameplayScreen : IGameScreen
         _requestExit = requestExit;
         _mapAssetName = mapAssetName;
         _spawnPointId = spawnPointId;
+        _spawnPosition = spawnPosition;
         _fadeInFromBlack = fadeInFromBlack;
         _songName = GetSongForMap(mapAssetName);
         _hasDayNightCycle = HasDayNightCycle(mapAssetName);
+        _hasCloudShadows = HasCloudShadows(mapAssetName);
+        _hasAmbientFireflies = HasAmbientFireflies(mapAssetName);
         _dayNightStartProgress = dayNightStartProgress;
         _followerConfig = GetFollowerConfigForMap(mapAssetName);
     }
@@ -355,6 +384,10 @@ public sealed class GameplayScreen : IGameScreen
         _followerSpriteSheet = _content.Load<Texture2D>("Sprites/companion_character_sheet");
         _boulderTexture = _content.Load<Texture2D>("Sprites/boulder");
         _dockTexture = _content.Load<Texture2D>("Sprites/wooden-dock");
+        _frontDoorClosedTexture = _content.Load<Texture2D>("Sprites/front-door-closed");
+        _frontDoorOpenTexture = _content.Load<Texture2D>("Sprites/front-door-open");
+        _doorOpenSfx = _content.Load<SoundEffect>("Audio/SFX/door_open_creak");
+        _doorCloseSfx = _content.Load<SoundEffect>("Audio/SFX/door_close_clunk");
         _dockLegLeftTexture = _content.Load<Texture2D>("Tilesets/wooden-dock-leg-left");
         _sunkenLogTexture = _content.Load<Texture2D>("Sprites/sunken-log");
         _sunkenChestTexture = _content.Load<Texture2D>("Sprites/sunken-chest");
@@ -406,7 +439,8 @@ public sealed class GameplayScreen : IGameScreen
             PlayerFramePixels, PlayerFramePixels,
             WalkFramesPerDirection, WalkFrameDuration);
 
-        var initialPosition = FindSpawnPosition(_worldRenderer.SpawnPoints, _spawnPointId)
+        var initialPosition = _spawnPosition
+            ?? FindSpawnPosition(_worldRenderer.SpawnPoints, _spawnPointId)
             ?? new Vector2(
                 (_worldRenderer.MapPixelWidth / 2f) - (PlayerFramePixels / 2f),
                 (_worldRenderer.MapPixelHeight / 2f) - (PlayerFramePixels / 2f));
@@ -426,8 +460,8 @@ public sealed class GameplayScreen : IGameScreen
             _followerConfig);
 
         _boulders = PropFactory.CreateBoulders(_boulderTexture, _worldRenderer.PropPlacements);
-        _gardenGnomes = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/garden-gnome"), _worldRenderer.PropPlacements, "garden-gnome", isUnderwater: false);
         _docks = PropFactory.CreateDocks(_dockTexture, _worldRenderer.PropPlacements);
+        _frontDoors = PropFactory.CreateFrontDoors(_frontDoorClosedTexture, _frontDoorOpenTexture, _worldRenderer.PropPlacements);
         _dockLegsLeft = PropFactory.CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: false);
         _surfaceReachDockLegsLeft = PropFactory.CreatePropsByType(_dockLegLeftTexture, _worldRenderer.PropPlacements, "dock-leg-left", isUnderwater: true, reachesSurface: true);
         var sunkenLogs = PropFactory.CreatePropsByType(_sunkenLogTexture, _worldRenderer.PropPlacements, "sunken-log", isUnderwater: false);
@@ -458,7 +492,24 @@ public sealed class GameplayScreen : IGameScreen
             PropFactory.Bush3CollisionBoxes,
         };
         _bushes = PropFactory.CreateVariantTrees(bushTextures, bushCollisionBoxes, _worldRenderer.PropPlacements, "bush");
+
+        // Garden gnomes must be created after trees so we can find the nearest tree for hide behavior.
+        var allTrees = new List<Tree>(_pineTrees.Length + _birchTrees.Length + _deadTrees.Length + _deciduousTrees.Length);
+        allTrees.AddRange(_pineTrees);
+        allTrees.AddRange(_birchTrees);
+        allTrees.AddRange(_deadTrees);
+        allTrees.AddRange(_deciduousTrees);
+        _gardenGnomes = PropFactory.CreateGardenGnomes(_content.Load<Texture2D>("Sprites/garden-gnome"), _worldRenderer.PropPlacements, allTrees);
+        _welcomeMats = PropFactory.CreateWelcomeMats(_content.Load<Texture2D>("Sprites/welcome-mat"), _worldRenderer.PropPlacements);
+        _areaRugs = PropFactory.CreateAreaRugs(_content.Load<Texture2D>("Sprites/area-rug"), _worldRenderer.PropPlacements);
+        _couches = PropFactory.CreateCouches(_content.Load<Texture2D>("Sprites/old-couch"), _worldRenderer.PropPlacements);
+        _oldTvs = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/old-tv"), _worldRenderer.PropPlacements, "old-tv", isUnderwater: false);
+        _gameConsoles = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/game-console"), _worldRenderer.PropPlacements, "game-console", isUnderwater: false);
+        _pottedPlants1 = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/potted-plant-1"), _worldRenderer.PropPlacements, "potted-plant-1", isUnderwater: false);
+        _entertainmentShelves = PropFactory.CreatePropsByType(_content.Load<Texture2D>("Sprites/entertainment-shelf"), _worldRenderer.PropPlacements, "entertainment-shelf", isUnderwater: false, collisionHeightPixels: 32);
+
         _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
+        _hookIconTexture = _content.Load<Texture2D>("Sprites/hook-icon");
         _particleManager = new ParticleManager(MaxParticleCount);
 
         if (_mapAssetName == "Maps/WoodsBehindCabin")
@@ -567,6 +618,11 @@ public sealed class GameplayScreen : IGameScreen
             _firepits[i].AttachSparkEmitter(new ParticleEmitter(_particleManager, FireSparkProfile));
         }
         var propObstacleBounds = PropFactory.MergeRectangleArrays(PropFactory.GetBoulderBounds(_boulders), PropFactory.GetFirepitBounds(_firepits));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_couches));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_oldTvs));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_gameConsoles));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_pottedPlants1));
+        propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetBoulderBounds(_entertainmentShelves));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_pineTrees));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_birchTrees));
         propObstacleBounds = PropFactory.MergeRectangleArrays(propObstacleBounds, PropFactory.GetTreeCollisionBounds(_deadTrees));
@@ -631,8 +687,11 @@ public sealed class GameplayScreen : IGameScreen
         var radialGradient = _content.Load<Texture2D>("Sprites/RadialGradient");
         _lightingRenderer.LoadContent(radialGradient);
 
-        _cloudShadowRenderer = new CloudShadowRenderer(_graphicsDevice, _virtualWidth, _virtualHeight);
-        _cloudShadowRenderer.LoadContent();
+        if (_hasCloudShadows)
+        {
+            _cloudShadowRenderer = new CloudShadowRenderer(_graphicsDevice, _virtualWidth, _virtualHeight);
+            _cloudShadowRenderer.LoadContent();
+        }
         _fireLightData = new LightData[_firepits.Length];
         _fireflyManager = new FireflyManager();
         _combinedLightData = new LightData[_firepits.Length + MaxFireflyLights];
@@ -653,7 +712,7 @@ public sealed class GameplayScreen : IGameScreen
             KernelHeight = 0,
         });
         _fontSystem.AddFont(File.ReadAllBytes(
-            Path.Combine(_content.RootDirectory, "Fonts", "Nunito.ttf")));
+            Path.Combine(global::System.AppContext.BaseDirectory, _content.RootDirectory, "Fonts", "Nunito.ttf")));
         _hudRenderer = new HudRenderer();
     }
 
@@ -722,7 +781,7 @@ public sealed class GameplayScreen : IGameScreen
         for (var i = 0; i < _worldRenderer.ZoneTriggers.Count; i++)
         {
             var trigger = _worldRenderer.ZoneTriggers[i];
-            if (_player.Bounds.Intersects(trigger.Bounds))
+            if (_player.FootBounds.Intersects(trigger.Bounds))
             {
                 BeginZoneTransition(trigger);
                 return;
@@ -731,10 +790,16 @@ public sealed class GameplayScreen : IGameScreen
 
         if (input.IsPressed(InputAction.Confirm))
         {
+            if (TryStartFishing())
+            {
+                return;
+            }
+
             TryToggleNearbyFirepit();
         }
 
         _follower.Update(gameTime, GetFollowerLeaderTargetPosition(), _player.Facing, GetFollowerRestPosition());
+        UpdateFrontDoors();
 
         _flowField?.Update(_player.Center);
         _waveManager?.Update(gameTime, _camera.WorldBounds);
@@ -773,6 +838,13 @@ public sealed class GameplayScreen : IGameScreen
         _isPlayerOccluded = CheckOcclusion(_player.Bounds, SortDepth(_player.Bounds, _worldRenderer.MapPixelHeight, _worldRenderer.MapPixelWidth));
         _isFollowerOccluded = CheckOcclusion(_follower.Bounds, SortDepth(_follower.Bounds, _worldRenderer.MapPixelHeight, _worldRenderer.MapPixelWidth));
         _worldRenderer.Update(gameTime);
+        for (var i = 0; i < _gardenGnomes.Length; i++)
+        {
+            _gardenGnomes[i].Update(gameTime, _player.Position);
+        }
+
+        _playerInFishingZone = IsPlayerInFishingZone();
+
         if (_hasDayNightCycle)
             _dayNightCycle.Update(gameTime);
         var activeFireLightCount = 0;
@@ -790,18 +862,58 @@ public sealed class GameplayScreen : IGameScreen
             (int)(_camera.Position.Y - _virtualHeight / 2f),
             _virtualWidth,
             _virtualHeight);
-        _fireflyManager.Update(gameTime, _dayNightCycle.NightStrength, cameraWorldBounds);
+        if (_hasAmbientFireflies)
+        {
+            _fireflyManager.Update(gameTime, _dayNightCycle.NightStrength, cameraWorldBounds);
+        }
 
         // Combine fire + firefly lights into one array for the lighting renderer.
         Array.Copy(_fireLightData, 0, _combinedLightData, 0, activeFireLightCount);
-        var fireflyLightCount = _fireflyManager.WriteLightData(_combinedLightData, activeFireLightCount);
+        var fireflyLightCount = _hasAmbientFireflies
+            ? _fireflyManager.WriteLightData(_combinedLightData, activeFireLightCount)
+            : 0;
         _lightingRenderer.SetLights(_combinedLightData, activeFireLightCount + fireflyLightCount);
         _particleManager.Update(gameTime);
         UpdateExplosions((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateEnergyOrbs((float)gameTime.ElapsedGameTime.TotalSeconds);
-        _cloudShadowRenderer.Update(gameTime);
+        if (_hasCloudShadows)
+        {
+            _cloudShadowRenderer.Update(gameTime);
+        }
         _musicManager.Update(gameTime);
         _rippleSystem.Update(gameTime, input, _camera, _graphicsDevice, _virtualWidth, _virtualHeight);
+    }
+
+    private void UpdateFrontDoors()
+    {
+        var tileSizePixels = Math.Max(_worldRenderer.TileWidthPixels, _worldRenderer.TileHeightPixels);
+        var invitationDistancePixels = (int)MathF.Round(tileSizePixels * FrontDoorInvitationTileScale);
+        var anyOpened = false;
+        var anyClosed = false;
+
+        for (var i = 0; i < _frontDoors.Length; i++)
+        {
+            var wasOpen = _frontDoors[i].IsOpen;
+            _frontDoors[i].UpdateInvitationState(_player.Bounds, invitationDistancePixels);
+            if (!wasOpen && _frontDoors[i].IsOpen)
+            {
+                anyOpened = true;
+            }
+            else if (wasOpen && !_frontDoors[i].IsOpen)
+            {
+                anyClosed = true;
+            }
+        }
+
+        if (anyOpened)
+        {
+            _doorOpenSfx.Play(DoorOpenSfxVolume, 0f, 0f);
+        }
+
+        if (anyClosed)
+        {
+            _doorCloseSfx.Play(DoorCloseSfxVolume, 0f, 0f);
+        }
     }
 
     /// <inheritdoc />
@@ -1051,15 +1163,21 @@ public sealed class GameplayScreen : IGameScreen
             blendState: BlendState.Additive,
             samplerState: SamplerState.LinearClamp,
             transformMatrix: worldMatrix);
-        _fireflyManager.Draw(_worldSpriteBatch, _smokeTexture);
+        if (_hasAmbientFireflies)
+        {
+            _fireflyManager.Draw(_worldSpriteBatch, _smokeTexture);
+        }
         _worldSpriteBatch.End();
 
         // --- Pass 5: Cloud shadows (multiply blend, half-res for soft edges) ---
-        _cloudShadowRenderer.Draw(
-            _worldSpriteBatch,
-            _camera.Position,
-            _dayNightCycle.NightStrength,
-            _previousRenderTarget);
+        if (_hasCloudShadows)
+        {
+            _cloudShadowRenderer.Draw(
+                _worldSpriteBatch,
+                _camera.Position,
+                _dayNightCycle.NightStrength,
+                _previousRenderTarget);
+        }
 
         // Lighting pass: fills a low-res lightmap with ambient darkness, draws fire glows
         // additively, then composites it over the scene with multiply blend.
@@ -1076,6 +1194,40 @@ public sealed class GameplayScreen : IGameScreen
     /// <inheritdoc />
     public void DrawOverlay(GameTime gameTime, SpriteBatch spriteBatch, int sceneScale)
     {
+        if (_playerInFishingZone)
+        {
+            var playerScreenTop = Vector2.Transform(_player.Position, _camera.GetViewMatrix());
+            var gameViewport = _graphicsDevice.Viewport;
+            var scaledSceneWidth = _virtualWidth * sceneScale;
+            var scaledSceneHeight = _virtualHeight * sceneScale;
+            var sceneOffsetX = (gameViewport.Width - scaledSceneWidth) / 2;
+            var sceneOffsetY = (gameViewport.Height - scaledSceneHeight) / 2;
+            var playerWindowTop = new Vector2(
+                sceneOffsetX + playerScreenTop.X * sceneScale,
+                sceneOffsetY + playerScreenTop.Y * sceneScale);
+            var scaledIconWidth = _hookIconTexture.Width * FishingPromptUiScale;
+            var scaledIconHeight = _hookIconTexture.Height * FishingPromptUiScale;
+            var playerScreenWidth = PlayerFramePixels * sceneScale;
+            var iconX = playerWindowTop.X + playerScreenWidth * 0.5f - scaledIconWidth * 0.5f;
+            var iconY = playerWindowTop.Y - scaledIconHeight + FishingPromptHeadGapPixels;
+
+            spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp);
+            spriteBatch.Draw(
+                _hookIconTexture,
+                new Vector2(iconX, iconY),
+                null,
+                Color.White,
+                0f,
+                Vector2.Zero,
+                FishingPromptUiScale,
+                SpriteEffects.None,
+                0f);
+            spriteBatch.End();
+        }
+
         // Level-up gold screen flash (drawn before HUD, after scene).
         if (_levelUpFlashTimer > 0f)
         {
@@ -1158,6 +1310,31 @@ public sealed class GameplayScreen : IGameScreen
         for (var i = 0; i < _boulders.Length; i++)
         {
             _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _boulders[i].Bounds, Color.Red);
+        }
+
+        for (var i = 0; i < _couches.Length; i++)
+        {
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _couches[i].Bounds, Color.Red);
+        }
+
+        for (var i = 0; i < _oldTvs.Length; i++)
+        {
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _oldTvs[i].Bounds, Color.Red);
+        }
+
+        for (var i = 0; i < _gameConsoles.Length; i++)
+        {
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _gameConsoles[i].Bounds, Color.Red);
+        }
+
+        for (var i = 0; i < _pottedPlants1.Length; i++)
+        {
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _pottedPlants1[i].Bounds, Color.Red);
+        }
+
+        for (var i = 0; i < _entertainmentShelves.Length; i++)
+        {
+            _debugRenderer.DrawRectangleOutline(_worldSpriteBatch, _entertainmentShelves[i].Bounds, Color.Red);
         }
 
         for (var i = 0; i < _firepits.Length; i++)
@@ -1414,7 +1591,20 @@ public sealed class GameplayScreen : IGameScreen
             _musicManager.SetVolume(0f);
             _fadeHoldTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            if (_fadeHoldTimer <= 0f && _pendingZoneTransition is { } transition)
+            if (_fadeHoldTimer <= 0f && _pendingFishingTransition)
+            {
+                _screenManager.Replace(new FishingScreen(
+                    _graphicsDevice,
+                    _content,
+                    _virtualWidth,
+                    _virtualHeight,
+                    _screenManager,
+                    _requestExit,
+                    _mapAssetName,
+                    _player.Position,
+                    _dayNightCycle?.CycleProgress ?? 0f));
+            }
+            else if (_fadeHoldTimer <= 0f && _pendingZoneTransition is { } transition)
             {
                 _screenManager.Replace(new GameplayScreen(
                     _graphicsDevice,
@@ -1449,6 +1639,7 @@ public sealed class GameplayScreen : IGameScreen
         return mapAssetName switch
         {
             "Maps/WoodsBehindCabin" => "WoodsBehindCabinTheme",
+            "Maps/CabinIndoors" => "CabinIndoorsTheme",
             _ => "GameplayTheme",
         };
     }
@@ -1467,6 +1658,24 @@ public sealed class GameplayScreen : IGameScreen
         return mapAssetName switch
         {
             "Maps/WoodsBehindCabin" => false,
+            _ => true,
+        };
+    }
+
+    private static bool HasCloudShadows(string mapAssetName)
+    {
+        return mapAssetName switch
+        {
+            "Maps/CabinIndoors" => false,
+            _ => true,
+        };
+    }
+
+    private static bool HasAmbientFireflies(string mapAssetName)
+    {
+        return mapAssetName switch
+        {
+            "Maps/CabinIndoors" => false,
             _ => true,
         };
     }
@@ -1517,6 +1726,88 @@ public sealed class GameplayScreen : IGameScreen
         {
             _firepits[nearestIndex].ToggleLit();
         }
+    }
+
+    private bool TryStartFishing()
+    {
+        var fishingBounds = GetFishingInteractionBounds();
+        var playerFacing = _player.Facing;
+
+        for (var i = 0; i < _worldRenderer.FishingZones.Count; i++)
+        {
+            var zone = _worldRenderer.FishingZones[i];
+            if (fishingBounds.Intersects(zone.Bounds) && playerFacing == zone.FacingDirection)
+            {
+                _screenManager.Push(new ConfirmationScreen(
+                    _screenManager,
+                    _graphicsDevice,
+                    _content,
+                    "Fish here?",
+                    new[] { "Yes", "No" },
+                    onSelect: selectedIndex =>
+                    {
+                        if (selectedIndex == 0)
+                        {
+                            BeginFishingTransition();
+                        }
+                    },
+                    defaultSelection: 1));
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsPlayerInFishingZone()
+    {
+        var fishingBounds = GetFishingInteractionBounds();
+        for (var i = 0; i < _worldRenderer.FishingZones.Count; i++)
+        {
+            if (fishingBounds.Intersects(_worldRenderer.FishingZones[i].Bounds))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private Rectangle GetFishingInteractionBounds()
+    {
+        var footBounds = _player.FootBounds;
+
+        return _player.Facing switch
+        {
+            FacingDirection.Down => new Rectangle(
+                footBounds.X,
+                footBounds.Y,
+                footBounds.Width,
+                footBounds.Height + FishingInteractionReachPixels),
+            FacingDirection.Up => new Rectangle(
+                footBounds.X,
+                footBounds.Y - FishingInteractionReachPixels,
+                footBounds.Width,
+                footBounds.Height + FishingInteractionReachPixels),
+            FacingDirection.Left => new Rectangle(
+                footBounds.X - FishingInteractionReachPixels,
+                footBounds.Y,
+                footBounds.Width + FishingInteractionReachPixels,
+                footBounds.Height),
+            FacingDirection.Right => new Rectangle(
+                footBounds.X,
+                footBounds.Y,
+                footBounds.Width + FishingInteractionReachPixels,
+                footBounds.Height),
+            _ => footBounds,
+        };
+    }
+
+    private void BeginFishingTransition()
+    {
+        _pendingFishingTransition = true;
+        _fadeState = FadeState.FadingOut;
+        _fadeAlpha = 0f;
     }
 
     /// <summary>Depth filter mode for <see cref="DrawWorldEntities"/>.</summary>
@@ -1628,11 +1919,55 @@ public sealed class GameplayScreen : IGameScreen
     /// </summary>
     private void DrawWorldEntities(float mapHeight, float mapWidth, float playerDepth, EntityDepthFilter filter)
     {
+        // Welcome mats and area rugs always draw at depth 0 — always on the ground, behind every sorted entity.
+        if (filter != EntityDepthFilter.InFrontOfPlayer)
+        {
+            for (var i = 0; i < _welcomeMats.Length; i++)
+                _welcomeMats[i].Draw(_worldSpriteBatch, 0f);
+            for (var i = 0; i < _areaRugs.Length; i++)
+                _areaRugs[i].Draw(_worldSpriteBatch, 0f);
+        }
+
         for (var i = 0; i < _boulders.Length; i++)
         {
             var depth = SortDepth(_boulders[i].Bounds, mapHeight, mapWidth);
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _boulders[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _couches.Length; i++)
+        {
+            var depth = SortDepth(_couches[i].Bounds, mapHeight, mapWidth);
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _couches[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _oldTvs.Length; i++)
+        {
+            var depth = SortDepth(_oldTvs[i].Bounds, mapHeight, mapWidth);
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _oldTvs[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _gameConsoles.Length; i++)
+        {
+            var depth = SortDepth(_gameConsoles[i].Bounds, mapHeight, mapWidth);
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _gameConsoles[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _pottedPlants1.Length; i++)
+        {
+            var depth = SortDepth(_pottedPlants1[i].Bounds, mapHeight, mapWidth);
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _pottedPlants1[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _entertainmentShelves.Length; i++)
+        {
+            var depth = SortDepth(_entertainmentShelves[i].Bounds, mapHeight, mapWidth);
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _entertainmentShelves[i].Draw(_worldSpriteBatch, depth);
         }
 
         for (var i = 0; i < _gardenGnomes.Length; i++)
@@ -1675,6 +2010,13 @@ public sealed class GameplayScreen : IGameScreen
             var depth = SortDepth(_cozyLakeCabins[i].Bounds, mapHeight, mapWidth, CabinSortAnchorOffsetPixels);
             if (PassesDepthFilter(depth, playerDepth, filter))
                 _cozyLakeCabins[i].Draw(_worldSpriteBatch, depth);
+        }
+
+        for (var i = 0; i < _frontDoors.Length; i++)
+        {
+            var depth = SortDepth(_frontDoors[i].Bounds, mapHeight, mapWidth);
+            if (PassesDepthFilter(depth, playerDepth, filter))
+                _frontDoors[i].Draw(_worldSpriteBatch, depth);
         }
 
         for (var i = 0; i < _pineTrees.Length; i++)
@@ -1792,6 +2134,14 @@ public sealed class GameplayScreen : IGameScreen
                 return true;
         }
 
+        for (var i = 0; i < _frontDoors.Length; i++)
+        {
+            if (_frontDoors[i].SuppressOcclusion) continue;
+            var depth = SortDepth(_frontDoors[i].Bounds, mapHeight, mapWidth);
+            if (depth > characterDepth && _frontDoors[i].Bounds.Contains(characterBounds))
+                return true;
+        }
+
         for (var i = 0; i < _pineTrees.Length; i++)
         {
             if (_pineTrees[i].SuppressOcclusion) continue;
@@ -1837,6 +2187,46 @@ public sealed class GameplayScreen : IGameScreen
             if (_boulders[i].SuppressOcclusion) continue;
             var depth = SortDepth(_boulders[i].Bounds, mapHeight, mapWidth);
             if (depth > characterDepth && _boulders[i].Bounds.Contains(characterBounds))
+                return true;
+        }
+
+        for (var i = 0; i < _couches.Length; i++)
+        {
+            if (_couches[i].SuppressOcclusion) continue;
+            var depth = SortDepth(_couches[i].Bounds, mapHeight, mapWidth);
+            if (depth > characterDepth && _couches[i].Bounds.Contains(characterBounds))
+                return true;
+        }
+
+        for (var i = 0; i < _oldTvs.Length; i++)
+        {
+            if (_oldTvs[i].SuppressOcclusion) continue;
+            var depth = SortDepth(_oldTvs[i].Bounds, mapHeight, mapWidth);
+            if (depth > characterDepth && _oldTvs[i].Bounds.Contains(characterBounds))
+                return true;
+        }
+
+        for (var i = 0; i < _gameConsoles.Length; i++)
+        {
+            if (_gameConsoles[i].SuppressOcclusion) continue;
+            var depth = SortDepth(_gameConsoles[i].Bounds, mapHeight, mapWidth);
+            if (depth > characterDepth && _gameConsoles[i].Bounds.Contains(characterBounds))
+                return true;
+        }
+
+        for (var i = 0; i < _pottedPlants1.Length; i++)
+        {
+            if (_pottedPlants1[i].SuppressOcclusion) continue;
+            var depth = SortDepth(_pottedPlants1[i].Bounds, mapHeight, mapWidth);
+            if (depth > characterDepth && _pottedPlants1[i].Bounds.Contains(characterBounds))
+                return true;
+        }
+
+        for (var i = 0; i < _entertainmentShelves.Length; i++)
+        {
+            if (_entertainmentShelves[i].SuppressOcclusion) continue;
+            var depth = SortDepth(_entertainmentShelves[i].Bounds, mapHeight, mapWidth);
+            if (depth > characterDepth && _entertainmentShelves[i].Bounds.Contains(characterBounds))
                 return true;
         }
 

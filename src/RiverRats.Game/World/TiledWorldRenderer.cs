@@ -16,6 +16,7 @@ namespace RiverRats.Game.World;
 public sealed class TiledWorldRenderer : IMapCollisionData
 {
     private const string GrassTerrainType = "Grass";
+    private const string WoodFloorTerrainType = "WoodFloor";
     private const string SandTerrainType = "Sand";
     private const string RiverbedTerrainType = "Riverbed";
     private const string ShorelineTerrainType = "Shoreline";
@@ -28,8 +29,10 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     private const string ColliderLayerName = "Colliders";
     private const string ZoneTriggerLayerName = "ZoneTriggers";
     private const string SpawnPointLayerName = "SpawnPoints";
+    private const string FishingZoneLayerName = "FishingZones";
     private const string TargetMapPropertyName = "targetMap";
     private const string TargetSpawnIdPropertyName = "targetSpawnId";
+    private const string FacingDirectionPropertyName = "facingDirection";
     private const uint TiledHorizontalFlipFlag = 0x80000000;
     private const uint TiledVerticalFlipFlag = 0x40000000;
     private const uint TiledDiagonalFlipFlag = 0x20000000;
@@ -45,9 +48,11 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     private readonly int _tilesetFirstGlobalIdentifier;
     private readonly SpriteBatch _spriteBatch;
     private readonly Texture2D[] _grassVariants;
+    private readonly Texture2D[] _woodFloorVariants;
     private readonly Texture2D[] _sandVariants;
     private readonly Texture2D[] _riverbedVariants;
     private readonly Texture2D[] _shorelineVariants;
+    private readonly int[] _woodFloorVariantIndexByTile;
     private readonly int[] _sandVariantIndexByTile;
     private readonly int[] _riverbedVariantIndexByTile;
     private readonly int[] _shorelineVariantIndexByTile;
@@ -56,6 +61,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     private readonly Rectangle[] _colliderBounds;
     private readonly ZoneTriggerData[] _zoneTriggers;
     private readonly SpawnPointData[] _spawnPoints;
+    private readonly FishingZoneData[] _fishingZones;
     private float _waterElapsedSeconds;
 
     /// <summary>Total map width in pixels (tile columns × tile pixel width).</summary>
@@ -91,6 +97,11 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     public IReadOnlyList<SpawnPointData> SpawnPoints => _spawnPoints;
 
     /// <summary>
+    /// Fishable interaction zones authored in the TMX FishingZones object layer.
+    /// </summary>
+    public IReadOnlyList<FishingZoneData> FishingZones => _fishingZones;
+
+    /// <summary>
     /// Initializes a world renderer from a tiled map asset in the content pipeline.
     /// </summary>
     /// <param name="graphicsDevice">The graphics device used for rendering.</param>
@@ -116,6 +127,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
 
         var terrainTiles = LoadTerrainTiles(tilesetPath, content);
         _grassVariants = terrainTiles.GrassVariants;
+        _woodFloorVariants = terrainTiles.WoodFloorVariants;
         _sandVariants = terrainTiles.SandVariants;
         _riverbedVariants = terrainTiles.RiverbedVariants;
         _shorelineVariants = terrainTiles.ShorelineVariants;
@@ -126,6 +138,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         _colliderBounds = LoadColliderBounds(mapElement);
         _zoneTriggers = LoadZoneTriggers(mapElement);
         _spawnPoints = LoadSpawnPoints(mapElement);
+        _fishingZones = LoadFishingZones(mapElement);
 
         var layers = new List<MapLayer>();
         foreach (var layerElement in mapElement.Elements("layer"))
@@ -146,6 +159,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         var tileCount = _mapWidth * _mapHeight;
         _blockedByTile = new bool[tileCount];
         _variantIndexByTile = new int[tileCount];
+        _woodFloorVariantIndexByTile = new int[tileCount];
         _sandVariantIndexByTile = new int[tileCount];
         _riverbedVariantIndexByTile = new int[tileCount];
         _shorelineVariantIndexByTile = new int[tileCount];
@@ -171,6 +185,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
                 }
 
                 _variantIndexByTile[tileIndex] = PickWeightedVariantIndex(x, y);
+                _woodFloorVariantIndexByTile[tileIndex] = PickWoodFloorVariantIndex(x, y, _woodFloorVariants.Length);
                 _sandVariantIndexByTile[tileIndex] = PickSandVariantIndex(x, y);
                 _riverbedVariantIndexByTile[tileIndex] = PickRiverbedVariantIndex(x, y, _riverbedVariants.Length);
                 _shorelineVariantIndexByTile[tileIndex] = PickShorelineVariantIndex(x, y, _shorelineVariants.Length);
@@ -337,6 +352,10 @@ public sealed class TiledWorldRenderer : IMapCollisionData
                 {
                     var variantIndex = _variantIndexByTile[tileIndex];
                     _spriteBatch.Draw(_grassVariants[variantIndex], destination, Color.White);
+                }
+                else if (terrainTile.TerrainType == WoodFloorTerrainType && _woodFloorVariants.Length > 0)
+                {
+                    _spriteBatch.Draw(_woodFloorVariants[_woodFloorVariantIndexByTile[tileIndex]], destination, Color.White);
                 }
                 else if (terrainTile.TerrainType == SandTerrainType)
                 {
@@ -516,6 +535,13 @@ public sealed class TiledWorldRenderer : IMapCollisionData
                     : 0f;
                 var topLeft = GetTileObjectTopLeft(x, y, height);
 
+                var rotationRadians = 0f;
+                if (objectElement.Attribute("rotation") is { } rotationAttribute
+                    && float.TryParse(rotationAttribute.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var rotationDegrees))
+                {
+                    rotationRadians = MathHelper.ToRadians(rotationDegrees);
+                }
+
                 // Per-object properties in the TMX override tile-level defaults from the TSX.
                 var suppressOcclusion = metadata.SuppressOcclusion;
                 var objectSuppressValue = GetTileProperty(objectElement, SuppressOcclusionPropertyName);
@@ -524,7 +550,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
                     suppressOcclusion = bool.TryParse(objectSuppressValue, out var parsedObjectSuppress) && parsedObjectSuppress;
                 }
 
-                props.Add(new MapPropPlacement(metadata.PropType, topLeft, metadata.IsUnderwater, metadata.ReachesSurface, suppressOcclusion));
+                props.Add(new MapPropPlacement(metadata.PropType, topLeft, metadata.IsUnderwater, metadata.ReachesSurface, suppressOcclusion, rotationRadians));
             }
         }
 
@@ -651,6 +677,64 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         return Array.Empty<SpawnPointData>();
     }
 
+    private static FishingZoneData[] LoadFishingZones(XElement mapElement)
+    {
+        foreach (var objectGroupElement in mapElement.Elements("objectgroup"))
+        {
+            var groupName = objectGroupElement.Attribute("name")?.Value;
+            if (!string.Equals(groupName, FishingZoneLayerName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var zones = new List<FishingZoneData>();
+            foreach (var objectElement in objectGroupElement.Elements("object"))
+            {
+                if (objectElement.Attribute("gid") is not null)
+                {
+                    continue;
+                }
+
+                var x = float.Parse(GetRequiredStringAttribute(objectElement, "x"), CultureInfo.InvariantCulture);
+                var y = float.Parse(GetRequiredStringAttribute(objectElement, "y"), CultureInfo.InvariantCulture);
+                var width = float.Parse(GetRequiredStringAttribute(objectElement, "width"), CultureInfo.InvariantCulture);
+                var height = float.Parse(GetRequiredStringAttribute(objectElement, "height"), CultureInfo.InvariantCulture);
+
+                var facingStr = GetTileProperty(objectElement, FacingDirectionPropertyName);
+                var facing = ParseFacingDirection(facingStr);
+
+                zones.Add(new FishingZoneData(
+                    new Rectangle(
+                        (int)MathF.Round(x),
+                        (int)MathF.Round(y),
+                        (int)MathF.Round(width),
+                        (int)MathF.Round(height)),
+                    facing));
+            }
+
+            return zones.ToArray();
+        }
+
+        return Array.Empty<FishingZoneData>();
+    }
+
+    private static FacingDirection ParseFacingDirection(string value)
+    {
+        if (value is null)
+        {
+            return FacingDirection.Down;
+        }
+
+        return value.ToLowerInvariant() switch
+        {
+            "down" => FacingDirection.Down,
+            "up" => FacingDirection.Up,
+            "left" => FacingDirection.Left,
+            "right" => FacingDirection.Right,
+            _ => FacingDirection.Down,
+        };
+    }
+
     private static TerrainTilesetData LoadTerrainTiles(string tilesetPath, ContentManager content)
     {
         var tilesetDirectory = Path.GetDirectoryName(tilesetPath) ?? throw new InvalidOperationException("Tileset directory is unavailable.");
@@ -660,6 +744,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         var tiles = tilesetElement.Elements("tile");
         var byLocalIdentifier = new Dictionary<int, TerrainTileInfo>();
         var grassTextures = new List<Texture2D>();
+        var woodFloorTextures = new List<Texture2D>();
         var sandTextures = new List<Texture2D>();
         var riverbedTextures = new List<Texture2D>();
         var shorelineTextures = new List<Texture2D>();
@@ -681,6 +766,10 @@ public sealed class TiledWorldRenderer : IMapCollisionData
             {
                 grassTextures.Add(texture);
             }
+            else if (string.Equals(terrainType, WoodFloorTerrainType, StringComparison.OrdinalIgnoreCase))
+            {
+                woodFloorTextures.Add(texture);
+            }
             else if (string.Equals(terrainType, SandTerrainType, StringComparison.OrdinalIgnoreCase))
             {
                 sandTextures.Add(texture);
@@ -695,12 +784,12 @@ public sealed class TiledWorldRenderer : IMapCollisionData
             }
         }
 
-        if (grassTextures.Count == 0)
+        if (byLocalIdentifier.Count == 0)
         {
-            throw new InvalidOperationException("Terrain tileset does not define any grass tiles.");
+            throw new InvalidOperationException("Terrain tileset does not define any tiles.");
         }
 
-        return new TerrainTilesetData(byLocalIdentifier, grassTextures.ToArray(), sandTextures.ToArray(), riverbedTextures.ToArray(), shorelineTextures.ToArray());
+        return new TerrainTilesetData(byLocalIdentifier, grassTextures.ToArray(), woodFloorTextures.ToArray(), sandTextures.ToArray(), riverbedTextures.ToArray(), shorelineTextures.ToArray());
     }
 
     private static string GetTileProperty(XElement tileElement, string propertyName)
@@ -763,13 +852,15 @@ public sealed class TiledWorldRenderer : IMapCollisionData
     /// <param name="Position">World-space top-left position in pixels.</param>
     /// <param name="IsUnderwater">When true the prop is drawn into the water render target so the distortion shader affects it.</param>
     /// <param name="SuppressOcclusion">When true the reveal lens will not activate when a character walks behind this prop.</param>
-    public readonly record struct MapPropPlacement(string PropType, Vector2 Position, bool IsUnderwater, bool ReachesSurface, bool SuppressOcclusion);
+    /// <param name="RotationRadians">Clockwise rotation in radians as authored in Tiled (converted from degrees).</param>
+    public readonly record struct MapPropPlacement(string PropType, Vector2 Position, bool IsUnderwater, bool ReachesSurface, bool SuppressOcclusion, float RotationRadians = 0f);
 
     private readonly record struct PropTileMetadata(string PropType, bool IsUnderwater, bool ReachesSurface, bool SuppressOcclusion);
 
     private readonly record struct TerrainTilesetData(
         Dictionary<int, TerrainTileInfo> ByLocalIdentifier,
         Texture2D[] GrassVariants,
+        Texture2D[] WoodFloorVariants,
         Texture2D[] SandVariants,
         Texture2D[] RiverbedVariants,
         Texture2D[] ShorelineVariants);
@@ -834,6 +925,23 @@ public sealed class TiledWorldRenderer : IMapCollisionData
         }
 
         return 2;
+    }
+
+    private static int PickWoodFloorVariantIndex(int x, int y, int variantCount)
+    {
+        if (variantCount <= 0)
+        {
+            return 0;
+        }
+
+        unchecked
+        {
+            var hash = ((uint)x * 83492791u) ^ ((uint)y * 2971215073u) ^ 0x7F4A7C15u;
+            hash ^= hash >> 15;
+            hash *= 2246822519u;
+            hash ^= hash >> 13;
+            return (int)(hash % (uint)variantCount);
+        }
     }
 
     internal static int PickRiverbedVariantIndex(int x, int y, int variantCount)
