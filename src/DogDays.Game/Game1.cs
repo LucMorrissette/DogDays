@@ -94,7 +94,7 @@ public class Game1 : Microsoft.Xna.Framework.Game
             _gameSessionServices.Quests.LoadDefinitions(QuestDefinitionLoader.LoadFromFile(questDefinitionPath));
         }
 
-        var gameplayScreen = new GameplayScreen(
+        var titleScreen = new TitleScreen(
             GraphicsDevice,
             Content,
             VirtualWidth,
@@ -102,7 +102,7 @@ public class Game1 : Microsoft.Xna.Framework.Game
             _screenManager,
             _gameSessionServices,
             Exit);
-        _screenManager.Push(gameplayScreen);
+        _screenManager.Push(titleScreen);
     }
 
     protected override void Update(GameTime gameTime)

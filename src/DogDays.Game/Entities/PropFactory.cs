@@ -251,6 +251,10 @@ internal static class PropFactory
         IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements)
     {
         var doors = new List<FrontDoor>(placements.Count);
+        var defaultSize = new Point(
+            Math.Max(closedTexture.Width, openTexture.Width),
+            Math.Max(closedTexture.Height, openTexture.Height));
+
         for (var i = 0; i < placements.Count; i++)
         {
             var placement = placements[i];
@@ -259,15 +263,25 @@ internal static class PropFactory
                 continue;
             }
 
+            var size = placement.SizePixels.X > 0 && placement.SizePixels.Y > 0
+                ? placement.SizePixels
+                : defaultSize;
+
             if (string.Equals(placement.PropType, "front-door-closed", StringComparison.OrdinalIgnoreCase))
             {
-                doors.Add(new FrontDoor(placement.Position, closedTexture, openTexture, startOpen: false, placement.SuppressOcclusion));
+                doors.Add(new FrontDoor(placement.Position, closedTexture, openTexture, size, startOpen: false, isLocked: false, placement.SuppressOcclusion));
                 continue;
             }
 
             if (string.Equals(placement.PropType, "front-door-open", StringComparison.OrdinalIgnoreCase))
             {
-                doors.Add(new FrontDoor(placement.Position, closedTexture, openTexture, startOpen: true, placement.SuppressOcclusion));
+                doors.Add(new FrontDoor(placement.Position, closedTexture, openTexture, size, startOpen: true, isLocked: false, placement.SuppressOcclusion));
+                continue;
+            }
+
+            if (string.Equals(placement.PropType, "front-door-locked", StringComparison.OrdinalIgnoreCase))
+            {
+                doors.Add(new FrontDoor(placement.Position, closedTexture, openTexture, size, startOpen: false, isLocked: true, placement.SuppressOcclusion));
             }
         }
 

@@ -105,7 +105,7 @@ internal static class TmxTilesetLoader
         return relativeImagePath;
     }
 
-    private static Texture2D LoadTexture2D(ContentManager content, string textureAssetName)
+    internal static Texture2D LoadTexture2D(ContentManager content, string textureAssetName)
     {
         try
         {

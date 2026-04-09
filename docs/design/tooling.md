@@ -16,6 +16,7 @@
 | `generate_storage_shed.py` | `tooling/sprites/generate_storage_shed.py` | Uses Pillow to generate a 64×64 storage shed sprite with transparent background for outdoor prop use. |
 | `prepare_pine_tree.py` | `tooling/sprites/prepare_pine_tree.py` | Removes background, crops, resizes to 128 px tall (4 tiles), and reduces palette. Outputs `Content/Sprites/pine-tree.png`. |
 | `prepare_birch_tree.py` | `tooling/sprites/prepare_birch_tree.py` | Removes background, crops, resizes to 128 px tall (4 tiles), and reduces palette. Outputs `Content/Sprites/birch-tree.png`. |
+| `generate_door_sfx.py` | `tooling/audio/generate_door_sfx.py` | Uses NumPy + `wave` to synthesize the authored wooden door interaction cues (`door_open_creak.wav`, `door_close_clunk.wav`, `door_locked_rattle.wav`) directly into `Content/Audio/SFX/`. |
 
 *(Add entries for placeholder art generation, asset scripts, content pipeline tooling, etc.)*
 

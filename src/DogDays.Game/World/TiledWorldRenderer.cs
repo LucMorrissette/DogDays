@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Xml.Linq;
 using Microsoft.Xna.Framework;
@@ -44,10 +45,12 @@ public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
     private readonly int[] _shorelineVariantIndexByTile;
     private readonly Dictionary<int, TerrainTileInfo> _terrainTiles;
     private readonly MapPropPlacement[] _propPlacements;
+    private readonly DecorativeTileObjectPlacement[] _decorativeTileObjects;
     private readonly Rectangle[] _colliderBounds;
     private readonly ZoneTriggerData[] _zoneTriggers;
     private readonly SpawnPointData[] _spawnPoints;
     private readonly FishingZoneData[] _fishingZones;
+    private readonly RenderableTilesetInfo[] _renderableTilesets;
     private readonly IndoorNavGraph? _navGraph;
     private float _waterElapsedSeconds;
 
@@ -127,10 +130,12 @@ public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
 
         var propMetadataByGlobalIdentifier = TmxObjectLoader.LoadPropMetadataByGlobalIdentifier(mapElement, mapDirectory);
         _propPlacements = TmxObjectLoader.LoadPropPlacements(mapElement, propMetadataByGlobalIdentifier);
+        _decorativeTileObjects = TmxObjectLoader.LoadDecorativeTileObjects(mapElement, propMetadataByGlobalIdentifier);
         _colliderBounds = TmxObjectLoader.LoadColliderBounds(mapElement);
         _zoneTriggers = TmxObjectLoader.LoadZoneTriggers(mapElement);
         _spawnPoints = TmxObjectLoader.LoadSpawnPoints(mapElement);
         _fishingZones = TmxObjectLoader.LoadFishingZones(mapElement);
+        _renderableTilesets = LoadRenderableTilesets(mapElement, mapDirectory, content);
 
         var navNodes = TmxObjectLoader.LoadNavNodes(mapElement);
         if (navNodes.Length > 0)
@@ -161,7 +166,7 @@ public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
         }
 
         _layers = layers.ToArray();
-    _waterLayerTileGlobalIds = waterLayerTileGlobalIds.ToArray();
+        _waterLayerTileGlobalIds = waterLayerTileGlobalIds.ToArray();
 
         var tileCount = _mapWidth * _mapHeight;
         _blockedByTile = new bool[tileCount];
@@ -296,6 +301,29 @@ public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
         DrawTerrain(transformMatrix);
     }
 
+    /// <summary>
+    /// Draws decorative tile objects authored in TMX object layers.
+    /// These objects render as a top overlay and are not converted into gameplay props.
+    /// </summary>
+    /// <param name="transformMatrix">World transform matrix.</param>
+    public void DrawDecorativeTileObjects(Matrix transformMatrix)
+    {
+        if (_decorativeTileObjects.Length == 0)
+        {
+            return;
+        }
+
+        _spriteBatch.Begin(
+            sortMode: SpriteSortMode.Deferred,
+            blendState: BlendState.AlphaBlend,
+            samplerState: SamplerState.PointClamp,
+            transformMatrix: transformMatrix);
+
+        DrawDecorativeTileObjectSprites();
+
+        _spriteBatch.End();
+    }
+
     private void DrawTiles(bool waterPass)
     {
         for (var layerIndex = 0; layerIndex < _layers.Length; layerIndex++)
@@ -382,6 +410,161 @@ public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
                 }
             }
         }
+    }
+
+    private void DrawDecorativeTileObjectSprites()
+    {
+        for (var i = 0; i < _decorativeTileObjects.Length; i++)
+        {
+            var placement = _decorativeTileObjects[i];
+            if (!TryFindRenderableTileset(placement.GlobalIdentifier, out var tileset))
+            {
+                continue;
+            }
+
+            var localIdentifier = placement.GlobalIdentifier - tileset.FirstGlobalIdentifier;
+            var sourceRectangle = tileset.GetSourceRectangle(localIdentifier);
+            if (sourceRectangle is null)
+            {
+                continue;
+            }
+
+            var texture = tileset.GetTexture(localIdentifier);
+            if (texture is null)
+            {
+                continue;
+            }
+
+            var destination = new Rectangle(
+                (int)MathF.Round(placement.Position.X),
+                (int)MathF.Round(placement.Position.Y),
+                placement.SizePixels.X > 0 ? placement.SizePixels.X : sourceRectangle.Value.Width,
+                placement.SizePixels.Y > 0 ? placement.SizePixels.Y : sourceRectangle.Value.Height);
+
+            _spriteBatch.Draw(
+                texture,
+                destination,
+                sourceRectangle,
+                Color.White,
+                placement.RotationRadians,
+                Vector2.Zero,
+                placement.SpriteEffects,
+                0f);
+        }
+    }
+
+    private bool TryFindRenderableTileset(int globalIdentifier, out RenderableTilesetInfo tileset)
+    {
+        for (var i = 0; i < _renderableTilesets.Length; i++)
+        {
+            if (globalIdentifier >= _renderableTilesets[i].FirstGlobalIdentifier)
+            {
+                tileset = _renderableTilesets[i];
+                return true;
+            }
+        }
+
+        tileset = null!;
+        return false;
+    }
+
+    private static RenderableTilesetInfo[] LoadRenderableTilesets(
+        XElement mapElement,
+        string mapDirectory,
+        ContentManager content)
+    {
+        var tilesets = new List<RenderableTilesetInfo>();
+
+        foreach (var tilesetRefElement in mapElement.Elements("tileset"))
+        {
+            var firstGlobalIdentifier = TmxXmlHelpers.GetRequiredIntAttribute(tilesetRefElement, "firstgid");
+            var tilesetSource = tilesetRefElement.Attribute("source")?.Value;
+
+            if (!string.IsNullOrWhiteSpace(tilesetSource))
+            {
+                var tilesetPath = Path.GetFullPath(Path.Combine(mapDirectory, tilesetSource));
+                tilesets.Add(LoadRenderableTileset(tilesetPath, firstGlobalIdentifier, content));
+                continue;
+            }
+
+            tilesets.Add(LoadRenderableTilesetFromElement(tilesetRefElement, firstGlobalIdentifier, mapDirectory, content));
+        }
+
+        tilesets.Sort((a, b) => b.FirstGlobalIdentifier.CompareTo(a.FirstGlobalIdentifier));
+        return tilesets.ToArray();
+    }
+
+    private static RenderableTilesetInfo LoadRenderableTileset(
+        string tilesetPath,
+        int firstGlobalIdentifier,
+        ContentManager content)
+    {
+        var tilesetDirectory = Path.GetDirectoryName(tilesetPath)
+            ?? throw new InvalidOperationException("Tileset directory is unavailable.");
+        var tilesetDocument = XDocument.Load(tilesetPath);
+        var tilesetElement = tilesetDocument.Element("tileset")
+            ?? throw new InvalidOperationException("TSX root element was not found.");
+
+        return LoadRenderableTilesetFromElement(tilesetElement, firstGlobalIdentifier, tilesetDirectory, content);
+    }
+
+    private static RenderableTilesetInfo LoadRenderableTilesetFromElement(
+        XElement tilesetElement,
+        int firstGlobalIdentifier,
+        string baseDirectory,
+        ContentManager content)
+    {
+        var tileWidth = TmxXmlHelpers.GetRequiredIntAttribute(tilesetElement, "tilewidth");
+        var tileHeight = TmxXmlHelpers.GetRequiredIntAttribute(tilesetElement, "tileheight");
+        var tileCount = tilesetElement.Attribute("tilecount") is { } tileCountAttribute
+            ? int.Parse(tileCountAttribute.Value, CultureInfo.InvariantCulture)
+            : 0;
+        var columns = tilesetElement.Attribute("columns") is { } columnsAttribute
+            ? int.Parse(columnsAttribute.Value, CultureInfo.InvariantCulture)
+            : 0;
+
+        var imageElement = tilesetElement.Element("image");
+        if (imageElement is not null)
+        {
+            var imageSource = TmxXmlHelpers.GetRequiredStringAttribute(imageElement, "source");
+            var textureAssetName = TmxTilesetLoader.GetContentAssetNameFromImageSource(
+                baseDirectory,
+                imageSource,
+                content.RootDirectory);
+            var texture = TmxTilesetLoader.LoadTexture2D(content, textureAssetName);
+            return new SingleImageRenderableTilesetInfo(
+                firstGlobalIdentifier,
+                tileWidth,
+                tileHeight,
+                tileCount,
+                columns,
+                texture);
+        }
+
+        var tileTextures = new Dictionary<int, Texture2D>();
+        foreach (var tileElement in tilesetElement.Elements("tile"))
+        {
+            var localIdentifier = TmxXmlHelpers.GetRequiredIntAttribute(tileElement, "id");
+            var tileImageElement = tileElement.Element("image");
+            if (tileImageElement is null)
+            {
+                continue;
+            }
+
+            var tileImageSource = tileImageElement.Attribute("source")?.Value;
+            if (string.IsNullOrWhiteSpace(tileImageSource))
+            {
+                continue;
+            }
+
+            var textureAssetName = TmxTilesetLoader.GetContentAssetNameFromImageSource(
+                baseDirectory,
+                tileImageSource,
+                content.RootDirectory);
+            tileTextures[localIdentifier] = TmxTilesetLoader.LoadTexture2D(content, textureAssetName);
+        }
+
+        return new CollectionRenderableTilesetInfo(firstGlobalIdentifier, tileTextures);
     }
 
     /// <inheritdoc />
@@ -497,6 +680,89 @@ public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
     internal static int PickShorelineVariantIndex(int x, int y, int variantCount) =>
         TileVariantPicker.PickShorelineVariantIndex(x, y, variantCount);
 
+    private abstract class RenderableTilesetInfo
+    {
+        protected RenderableTilesetInfo(int firstGlobalIdentifier)
+        {
+            FirstGlobalIdentifier = firstGlobalIdentifier;
+        }
+
+        internal int FirstGlobalIdentifier { get; }
+
+        internal abstract Texture2D? GetTexture(int localIdentifier);
+
+        internal abstract Rectangle? GetSourceRectangle(int localIdentifier);
+    }
+
+    private sealed class SingleImageRenderableTilesetInfo : RenderableTilesetInfo
+    {
+        private readonly int _tileWidth;
+        private readonly int _tileHeight;
+        private readonly int _tileCount;
+        private readonly int _columns;
+        private readonly Texture2D _texture;
+
+        internal SingleImageRenderableTilesetInfo(
+            int firstGlobalIdentifier,
+            int tileWidth,
+            int tileHeight,
+            int tileCount,
+            int columns,
+            Texture2D texture)
+            : base(firstGlobalIdentifier)
+        {
+            _tileWidth = tileWidth;
+            _tileHeight = tileHeight;
+            _tileCount = tileCount;
+            _columns = columns > 0 ? columns : texture.Width / tileWidth;
+            _texture = texture;
+        }
+
+        internal override Texture2D? GetTexture(int localIdentifier) => _texture;
+
+        internal override Rectangle? GetSourceRectangle(int localIdentifier)
+        {
+            if (localIdentifier < 0 || (_tileCount > 0 && localIdentifier >= _tileCount))
+            {
+                return null;
+            }
+
+            var column = localIdentifier % _columns;
+            var row = localIdentifier / _columns;
+            return new Rectangle(column * _tileWidth, row * _tileHeight, _tileWidth, _tileHeight);
+        }
+    }
+
+    private sealed class CollectionRenderableTilesetInfo : RenderableTilesetInfo
+    {
+        private readonly Dictionary<int, Texture2D> _textures;
+
+        internal CollectionRenderableTilesetInfo(
+            int firstGlobalIdentifier,
+            Dictionary<int, Texture2D> textures)
+            : base(firstGlobalIdentifier)
+        {
+            _textures = textures;
+        }
+
+        internal override Texture2D? GetTexture(int localIdentifier)
+        {
+            return _textures.TryGetValue(localIdentifier, out var texture)
+                ? texture
+                : null;
+        }
+
+        internal override Rectangle? GetSourceRectangle(int localIdentifier)
+        {
+            if (!_textures.TryGetValue(localIdentifier, out var texture))
+            {
+                return null;
+            }
+
+            return new Rectangle(0, 0, texture.Width, texture.Height);
+        }
+    }
+
     private readonly record struct MapLayer(string Name, int[] TileGlobalIds, bool IsWaterLayer);
 
     /// <summary>
@@ -504,8 +770,10 @@ public sealed class TiledWorldRenderer : IMapCollisionData, IDisposable
     /// </summary>
     /// <param name="PropType">Prop identifier from TSX tile property <c>propType</c>.</param>
     /// <param name="Position">World-space top-left position in pixels.</param>
+    /// <param name="SizePixels">Authored prop size in world pixels. Zero dimensions mean the native sprite size should be used.</param>
     /// <param name="IsUnderwater">When true the prop is drawn into the water render target so the distortion shader affects it.</param>
+    /// <param name="ReachesSurface">When true the prop also participates in the surface-reach distortion mask.</param>
     /// <param name="SuppressOcclusion">When true the reveal lens will not activate when a character walks behind this prop.</param>
     /// <param name="RotationRadians">Clockwise rotation in radians as authored in Tiled (converted from degrees).</param>
-    public readonly record struct MapPropPlacement(string PropType, Vector2 Position, bool IsUnderwater, bool ReachesSurface, bool SuppressOcclusion, float RotationRadians = 0f);
+    public readonly record struct MapPropPlacement(string PropType, Vector2 Position, Point SizePixels, bool IsUnderwater, bool ReachesSurface, bool SuppressOcclusion, float RotationRadians = 0f);
 }

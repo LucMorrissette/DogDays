@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.12.0" orientation="orthogonal" renderorder="right-down" width="3" height="5" tilewidth="32" tileheight="32" infinite="0" nextlayerid="5" nextobjectid="25">
+ <tileset firstgid="1" source="../Tilesets/CabinInterior.tsx"/>
+ <tileset firstgid="15" source="../Tilesets/CabinWallFrame.tsx"/>
+ <layer id="1" name="Ground" width="3" height="5" locked="1">
+  <data encoding="csv">
+13,13,13,
+10,10,10,
+1,2,3,
+2,3,4,
+3,4,1
+</data>
+ </layer>
+ <objectgroup id="2" name="ZoneTriggers" locked="1">
+  <object id="1" x="0" y="156" width="32" height="4">
+   <properties>
+    <property name="targetMap" value="Maps/CabinIndoors"/>
+    <property name="targetSpawnId" value="from-bedroom"/>
+   </properties>
+  </object>
+ </objectgroup>
+ <objectgroup id="3" name="SpawnPoints">
+  <object id="2" name="from-cabin-indoors" x="15" y="142">
+   <properties>
+    <property name="facingDirection" value="up"/>
+   </properties>
+  </object>
+  <object id="3" name="default" x="81" y="103"/>
+ </objectgroup>
+ <objectgroup id="4" name="WallBorders" locked="1">
+  <object id="4" gid="19" x="-12" y="0" width="12" height="12"/>
+  <object id="5" gid="15" x="0" y="0" width="32" height="12"/>
+  <object id="6" gid="15" x="32" y="0" width="32" height="12"/>
+  <object id="7" gid="15" x="64" y="0" width="32" height="12"/>
+  <object id="8" gid="20" x="96" y="0" width="12" height="12"/>
+  <object id="9" gid="18" x="96" y="32" width="12" height="32"/>
+  <object id="10" gid="18" x="96" y="64" width="12" height="32"/>
+  <object id="11" gid="18" x="96" y="96" width="12" height="32"/>
+  <object id="12" gid="18" x="96" y="128" width="12" height="32"/>
+  <object id="13" gid="18" x="96" y="160" width="12" height="32"/>
+  <object id="14" gid="24" x="-12" y="172" width="12" height="12"/>
+  <object id="15" gid="16" x="0" y="172" width="32" height="12"/>
+  <object id="16" gid="16" x="32" y="172" width="32" height="12"/>
+  <object id="17" gid="16" x="64" y="172" width="32" height="12"/>
+  <object id="18" gid="23" x="96" y="172" width="12" height="12"/>
+  <object id="19" gid="17" x="-12" y="32" width="12" height="32"/>
+  <object id="20" gid="17" x="-12" y="64" width="12" height="32"/>
+  <object id="21" gid="17" x="-12" y="96" width="12" height="32"/>
+  <object id="22" gid="17" x="-12" y="128" width="12" height="32"/>
+  <object id="23" gid="17" x="-12" y="160" width="12" height="32"/>
+ </objectgroup>
+</map>

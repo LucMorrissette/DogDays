@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Xml.Linq;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using DogDays.Game.Data;
 
 namespace DogDays.Game.World;
@@ -29,6 +30,8 @@ internal static class TmxObjectLoader
     private const string NavNodeLayerName = "NavNodes";
     private const string NavLinkLayerName = "NavLinks";
     private const string TagsPropertyName = "tags";
+    private const uint FlipHorizontalFlag = 0x80000000u;
+    private const uint FlipVerticalFlag = 0x40000000u;
 
     /// <summary>Combined Tiled flip-bit mask (horizontal | vertical | diagonal).</summary>
     private const uint TiledFlipMask = 0xE0000000u;
@@ -123,6 +126,9 @@ internal static class TmxObjectLoader
                 var y = float.Parse(
                     TmxXmlHelpers.GetRequiredStringAttribute(objectElement, "y"),
                     CultureInfo.InvariantCulture);
+                var width = objectElement.Attribute("width") is { } widthAttribute
+                    ? float.Parse(widthAttribute.Value, CultureInfo.InvariantCulture)
+                    : 0f;
                 var height = objectElement.Attribute("height") is { } heightAttribute
                     ? float.Parse(heightAttribute.Value, CultureInfo.InvariantCulture)
                     : 0f;
@@ -150,6 +156,7 @@ internal static class TmxObjectLoader
                 props.Add(new TiledWorldRenderer.MapPropPlacement(
                     metadata.PropType,
                     topLeft,
+                    new Point((int)MathF.Round(width), (int)MathF.Round(height)),
                     metadata.IsUnderwater,
                     metadata.ReachesSurface,
                     suppressOcclusion,
@@ -158,6 +165,84 @@ internal static class TmxObjectLoader
         }
 
         return props.ToArray();
+    }
+
+    internal static DecorativeTileObjectPlacement[] LoadDecorativeTileObjects(
+        XElement mapElement, Dictionary<int, PropTileMetadata> metadataByGlobalIdentifier)
+    {
+        var decorativeTiles = new List<DecorativeTileObjectPlacement>();
+
+        foreach (var objectGroupElement in mapElement.Elements("objectgroup"))
+        {
+            foreach (var objectElement in objectGroupElement.Elements("object"))
+            {
+                var gidAttribute = objectElement.Attribute("gid");
+                if (gidAttribute is null)
+                {
+                    continue;
+                }
+
+                if (!uint.TryParse(
+                    gidAttribute.Value,
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var rawGlobalIdentifier))
+                {
+                    continue;
+                }
+
+                var globalIdentifier = (int)(rawGlobalIdentifier & ~TiledFlipMask);
+                if (metadataByGlobalIdentifier.ContainsKey(globalIdentifier))
+                {
+                    continue;
+                }
+
+                var x = float.Parse(
+                    TmxXmlHelpers.GetRequiredStringAttribute(objectElement, "x"),
+                    CultureInfo.InvariantCulture);
+                var y = float.Parse(
+                    TmxXmlHelpers.GetRequiredStringAttribute(objectElement, "y"),
+                    CultureInfo.InvariantCulture);
+                var width = objectElement.Attribute("width") is { } widthAttribute
+                    ? float.Parse(widthAttribute.Value, CultureInfo.InvariantCulture)
+                    : 0f;
+                var height = objectElement.Attribute("height") is { } heightAttribute
+                    ? float.Parse(heightAttribute.Value, CultureInfo.InvariantCulture)
+                    : 0f;
+                var topLeft = TmxXmlHelpers.GetTileObjectTopLeft(x, y, height);
+
+                var rotationRadians = 0f;
+                if (objectElement.Attribute("rotation") is { } rotationAttribute
+                    && float.TryParse(
+                        rotationAttribute.Value,
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out var rotationDegrees))
+                {
+                    rotationRadians = MathHelper.ToRadians(rotationDegrees);
+                }
+
+                var spriteEffects = SpriteEffects.None;
+                if ((rawGlobalIdentifier & FlipHorizontalFlag) != 0)
+                {
+                    spriteEffects |= SpriteEffects.FlipHorizontally;
+                }
+
+                if ((rawGlobalIdentifier & FlipVerticalFlag) != 0)
+                {
+                    spriteEffects |= SpriteEffects.FlipVertically;
+                }
+
+                decorativeTiles.Add(new DecorativeTileObjectPlacement(
+                    globalIdentifier,
+                    topLeft,
+                    new Point((int)MathF.Round(width), (int)MathF.Round(height)),
+                    spriteEffects,
+                    rotationRadians));
+            }
+        }
+
+        return decorativeTiles.ToArray();
     }
 
     // ── Colliders ─────────────────────────────────────────────────────────────
@@ -276,8 +361,10 @@ internal static class TmxObjectLoader
 
                 var x = float.Parse(TmxXmlHelpers.GetRequiredStringAttribute(objectElement, "x"), CultureInfo.InvariantCulture);
                 var y = float.Parse(TmxXmlHelpers.GetRequiredStringAttribute(objectElement, "y"), CultureInfo.InvariantCulture);
+                var facingStr = TmxXmlHelpers.GetTileProperty(objectElement, FacingDirectionPropertyName);
+                var facing = ParseOptionalFacingDirection(facingStr);
 
-                points.Add(new SpawnPointData(name, new Vector2(x, y)));
+                points.Add(new SpawnPointData(name, new Vector2(x, y), facing));
             }
 
             return points.ToArray();
@@ -470,6 +557,23 @@ internal static class TmxObjectLoader
             _ => FacingDirection.Down,
         };
     }
+
+    internal static FacingDirection? ParseOptionalFacingDirection(string? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        return value.ToLowerInvariant() switch
+        {
+            "down" => FacingDirection.Down,
+            "up" => FacingDirection.Up,
+            "left" => FacingDirection.Left,
+            "right" => FacingDirection.Right,
+            _ => null,
+        };
+    }
 }
 
 /// <summary>
@@ -480,3 +584,14 @@ internal readonly record struct PropTileMetadata(
     bool IsUnderwater,
     bool ReachesSurface,
     bool SuppressOcclusion);
+
+/// <summary>
+/// Decorative TMX tile-object placement that should render directly from its tileset
+/// instead of being converted into a gameplay prop entity.
+/// </summary>
+internal readonly record struct DecorativeTileObjectPlacement(
+    int GlobalIdentifier,
+    Vector2 Position,
+    Point SizePixels,
+    SpriteEffects SpriteEffects,
+    float RotationRadians);

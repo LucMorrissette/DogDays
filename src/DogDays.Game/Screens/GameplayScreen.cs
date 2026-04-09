@@ -145,6 +145,7 @@ public sealed class GameplayScreen : IGameScreen
     private const float BomberDeathTrauma = 0.12f;
     private const float DoorOpenSfxVolume = 0.48f;
     private const float DoorCloseSfxVolume = 0.42f;
+    private const float DoorLockedSfxVolume = 0.54f;
     private const float QuestDiscoveryCueSfxVolume = 0.78f;
     private const float QuestCompleteCueSfxVolume = 0.84f;
     private const float EnergyOrbDropChance = 0.75f;
@@ -282,6 +283,7 @@ public sealed class GameplayScreen : IGameScreen
     private readonly SoundEffect[] _playerHurtSfx = new SoundEffect[PlayerHurtSfxCount];
     private readonly SoundEffect[] _orbCollectVariationSfx = new SoundEffect[OrbCollectVariationSfxCount];
     private readonly SoundEffect[] _redOrbCollectVariationSfx = new SoundEffect[RedOrbCollectVariationSfxCount];
+    private SoundEffect _doorLockedSfx;
     private SoundEffect _doorOpenSfx;
     private SoundEffect _doorCloseSfx;
     private SoundEffect _questDiscoveryCueSfx;
@@ -400,6 +402,7 @@ public sealed class GameplayScreen : IGameScreen
         _canoeHorizontalTexture = _content.Load<Texture2D>("Sprites/canoe-horizontal");
         _frontDoorClosedTexture = _content.Load<Texture2D>("Sprites/front-door-closed");
         _frontDoorOpenTexture = _content.Load<Texture2D>("Sprites/front-door-open");
+        _doorLockedSfx = _content.Load<SoundEffect>("Audio/SFX/door_locked_rattle");
         _doorOpenSfx = _content.Load<SoundEffect>("Audio/SFX/door_open_creak");
         _doorCloseSfx = _content.Load<SoundEffect>("Audio/SFX/door_close_clunk");
         _questDiscoveryCueSfx = _content.Load<SoundEffect>("Audio/SFX/quest_discovery_sting");
@@ -466,8 +469,13 @@ public sealed class GameplayScreen : IGameScreen
                 PlayerFramePixels, PlayerFramePixels,
                 WalkFramesPerDirection, WalkFrameDuration);
 
+        // Tiled spawn points mark the center of the character; convert to top-left
+        // by subtracting half the player frame size. The save-data path (_spawnPosition)
+        // already stores the top-left, and the fallback centers manually.
+        var halfFrame = new Vector2(PlayerFramePixels / 2f, PlayerFramePixels / 2f);
+        var spawnPoint = FindSpawnPoint(_worldRenderer.SpawnPoints, _spawnPointId);
         var initialPosition = _spawnPosition
-            ?? FindSpawnPosition(_worldRenderer.SpawnPoints, _spawnPointId)
+            ?? (spawnPoint?.Position - halfFrame)
             ?? new Vector2(
                 (_worldRenderer.MapPixelWidth / 2f) - (PlayerFramePixels / 2f),
                 (_worldRenderer.MapPixelHeight / 2f) - (PlayerFramePixels / 2f));
@@ -478,6 +486,11 @@ public sealed class GameplayScreen : IGameScreen
             PlayerMoveSpeedPixelsPerSecond,
             new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight),
             PlayerAccelerationRate);
+
+        if (spawnPoint?.Facing is { } spawnFacing)
+        {
+            _player.SetFacing(spawnFacing);
+        }
 
         _followerSystem = new FollowerSystem(
             _mapConfig.FollowerConfig,
@@ -1084,7 +1097,7 @@ public sealed class GameplayScreen : IGameScreen
             _player.Facing,
             _followerSystem.GetRestPosition(_player, _follower, _collisionMap,
                 _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight));
-        UpdateFrontDoors();
+        UpdateFrontDoors(gameTime);
         UpdateGardenShedDoors();
 
         _flowField?.Update(_player.Center);
@@ -1232,17 +1245,19 @@ public sealed class GameplayScreen : IGameScreen
         }
     }
 
-    private void UpdateFrontDoors()
+    private void UpdateFrontDoors(GameTime gameTime)
     {
         var tileSizePixels = Math.Max(_worldRenderer.TileWidthPixels, _worldRenderer.TileHeightPixels);
         var invitationDistancePixels = (int)MathF.Round(tileSizePixels * FrontDoorInvitationTileScale);
         var anyOpened = false;
         var anyClosed = false;
+        var anyLocked = false;
+        var elapsedSeconds = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
         for (var i = 0; i < _frontDoors.Length; i++)
         {
             var wasOpen = _frontDoors[i].IsOpen;
-            _frontDoors[i].UpdateInvitationState(_player.Bounds, invitationDistancePixels);
+            _frontDoors[i].UpdateInvitationState(_player.Bounds, invitationDistancePixels, elapsedSeconds);
             if (!wasOpen && _frontDoors[i].IsOpen)
             {
                 anyOpened = true;
@@ -1251,6 +1266,13 @@ public sealed class GameplayScreen : IGameScreen
             {
                 anyClosed = true;
             }
+
+            anyLocked |= _frontDoors[i].ConsumeLockedFeedbackRequest();
+        }
+
+        if (anyLocked)
+        {
+            _doorLockedSfx.Play(DoorLockedSfxVolume, 0f, 0f);
         }
 
         if (anyOpened)
@@ -1500,6 +1522,8 @@ public sealed class GameplayScreen : IGameScreen
             }
             _worldSpriteBatch.End();
         }
+
+        _worldRenderer.DrawDecorativeTileObjects(worldMatrix);
 
         // --- Debug overlay: collision bounds (Deferred so they render on top of all entities) ---
         // Mode 0 = off, Mode 1 = grid + bounds, Mode 2 = bounds only
@@ -2215,7 +2239,7 @@ public sealed class GameplayScreen : IGameScreen
         }
     }
 
-    private static Vector2? FindSpawnPosition(IReadOnlyList<SpawnPointData> spawnPoints, string spawnPointId)
+    private static SpawnPointData? FindSpawnPoint(IReadOnlyList<SpawnPointData> spawnPoints, string spawnPointId)
     {
         if (spawnPointId is null || spawnPoints.Count == 0)
         {
@@ -2226,7 +2250,7 @@ public sealed class GameplayScreen : IGameScreen
         {
             if (string.Equals(spawnPoints[i].Name, spawnPointId, StringComparison.Ordinal))
             {
-                return spawnPoints[i].Position;
+                return spawnPoints[i];
             }
         }
 

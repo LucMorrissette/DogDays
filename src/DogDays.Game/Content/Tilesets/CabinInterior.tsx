@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.12.0" name="CabinInterior" tilewidth="32" tileheight="32" tilecount="8" columns="0">
+<tileset version="1.10" tiledversion="1.12.0" name="CabinInterior" tilewidth="32" tileheight="32" tilecount="14" columns="0">
   <tile id="0">
     <properties>
       <property name="terrainType" value="WoodFloor"/>
@@ -47,5 +47,47 @@
       <property name="terrainType" value="CabinCheckeredFloor"/>
     </properties>
     <image source="cabin-checker-floor-dark-2.png" width="32" height="32"/>
+  </tile>
+  <tile id="8">
+    <properties>
+      <property name="blocked" value="true"/>
+      <property name="terrainType" value="CabinWallpaper"/>
+    </properties>
+    <image source="cabin-wall-wallpaper.png" width="32" height="32"/>
+  </tile>
+  <tile id="9">
+    <properties>
+      <property name="blocked" value="true"/>
+      <property name="terrainType" value="CabinWainscoting"/>
+    </properties>
+    <image source="cabin-wall-wainscoting.png" width="32" height="32"/>
+  </tile>
+  <tile id="10">
+    <properties>
+      <property name="blocked" value="true"/>
+      <property name="terrainType" value="CabinWallpaper"/>
+    </properties>
+    <image source="cabin-wall-wallpaper-botanical.png" width="32" height="32"/>
+  </tile>
+  <tile id="11">
+    <properties>
+      <property name="blocked" value="true"/>
+      <property name="terrainType" value="CabinWallpaper"/>
+    </properties>
+    <image source="cabin-wall-wallpaper-stripe.png" width="32" height="32"/>
+  </tile>
+  <tile id="12">
+    <properties>
+      <property name="blocked" value="true"/>
+      <property name="terrainType" value="CabinWallpaper"/>
+    </properties>
+    <image source="cabin-wall-wallpaper-stars.png" width="32" height="32"/>
+  </tile>
+  <tile id="13">
+    <properties>
+      <property name="blocked" value="true"/>
+      <property name="terrainType" value="CabinWallpaper"/>
+    </properties>
+    <image source="cabin-wall-wallpaper-solid.png" width="32" height="32"/>
   </tile>
 </tileset>

@@ -5,7 +5,7 @@
 | Class | Description |
 |---|---|
 | `IMapCollisionData` | World collision query contract for blocked-tile checks using world-space rectangles. |
-| `TiledWorldRenderer` | TMX/TSX-backed world renderer that draws ordered tile layers, routes `Water/*` layers through the water pass, aggregates tile-property collision across all layers, and exposes TMX object-layer prop placements. Also exposes `ColliderBounds`, `ZoneTriggers`, `SpawnPoints`, and an optional `IndoorNavGraph` parsed from dedicated TMX object layers so gameplay can stay editor-driven. |
+| `TiledWorldRenderer` | TMX/TSX-backed world renderer that draws ordered tile layers, routes `Water/*` layers through the water pass, aggregates tile-property collision across all layers, exposes TMX object-layer prop placements, and renders non-`propType` tile objects as a dedicated top overlay. Also exposes `ColliderBounds`, `ZoneTriggers`, `SpawnPoints`, and an optional `IndoorNavGraph` parsed from dedicated TMX object layers so gameplay can stay editor-driven. |
 | `WorldCollisionMap` | Collision aggregator that combines terrain blockers with additional placed obstacle bounds. |
 | `IndoorNavNode` | A single navigable point in an indoor map with an id, position, optional name, and tags. Loaded from TMX `NavNodes` object layer point objects. |
 | `IndoorNavLink` | Bidirectional connection between two `IndoorNavNode` instances. Loaded from TMX `NavLinks` object layer polyline objects with endpoint-to-node proximity matching. |
@@ -27,6 +27,21 @@ Collision boxes for world props are defined **in code** as part of the entity cl
 ### TMX Colliders layer
 
 The TMX `Colliders` object layer is reserved for **terrain and world-boundary colliders only** (e.g., ground/water borders). Do not add prop-specific collision rectangles to this layer.
+
+## Decorative Tile-Object Overlays
+
+TMX object layers may also contain **tile objects without a `propType` property**. These are treated as decorative overlays rather than gameplay props.
+
+### How it works
+
+1. `TmxObjectLoader` skips tile objects whose global tile id maps to TSX `propType` metadata, because those become screen-owned prop entities.
+2. Remaining tile objects are parsed into decorative placements with their authored size, position, and flip flags preserved.
+3. `TiledWorldRenderer` renders those decorative tile objects in a dedicated overlay pass after world entities.
+
+### When to use this path
+
+- Use it for cutaway wall borders, room trim, non-interactive decorative overlays, and similar editor-authored visuals.
+- Do not use it for anything that needs collision, saveable runtime state, or behavior. Those still belong on the `propType` entity path.
 
 ## Zone Transition Authoring
 

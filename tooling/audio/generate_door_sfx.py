@@ -1,12 +1,14 @@
-"""Generate front-door open/close sound effects.
+"""Generate front-door interaction sound effects.
 
 Design goals:
     - door_open_creak: believable wooden hinge friction with irregular stick-slip,
         low body groan, narrow squeal resonances, and a very short quick-open gesture.
     - door_close_clunk: compact solid wooden thud with only a tiny latch accent,
         avoiding the brighter cabinet-clink character.
+    - door_locked_rattle: short failed-open cue with a woody latch knock, brief
+        metal rattle, and a tiny handle jiggle that reads as "locked".
 
-Output: 2 mono 16-bit 44100 Hz WAV files in Content/Audio/SFX/
+Output: 3 mono 16-bit 44100 Hz WAV files in Content/Audio/SFX/
 
 The synthesis intentionally stays within the repo's existing tooling stack:
 numpy + wave only.
@@ -199,20 +201,80 @@ def generate_door_close_clunk(rng: np.random.Generator) -> np.ndarray:
     return fade_out(signal, 14.0)
 
 
+def burst_train(length_s: float, pulse_times_s: list[float], pulse_width_s: float) -> np.ndarray:
+    """Create a few short Hann-windowed pulses for clustered mechanical impacts."""
+    sample_count = int(length_s * SAMPLE_RATE)
+    envelope = np.zeros(sample_count)
+    pulse_len = max(1, int(pulse_width_s * SAMPLE_RATE))
+    pulse = np.sin(np.linspace(0.0, np.pi, pulse_len, endpoint=False)) ** 1.3
+
+    for pulse_time in pulse_times_s:
+        start = int(pulse_time * SAMPLE_RATE)
+        end = min(sample_count, start + pulse_len)
+        if start >= sample_count:
+            continue
+
+        envelope[start:end] += pulse[: end - start]
+
+    return np.clip(envelope, 0.0, 1.0)
+
+
+def generate_door_locked_rattle(rng: np.random.Generator) -> np.ndarray:
+    """Synthesize a short locked-door jiggle with a wooden latch knock."""
+    duration_s = 0.22
+    sample_count = int(duration_s * SAMPLE_RATE)
+    t = np.linspace(0, duration_s, sample_count, endpoint=False)
+
+    pulse_env = burst_train(duration_s, [0.0, 0.034, 0.070], pulse_width_s=0.020)
+    handle_env = burst_train(duration_s, [0.010, 0.046, 0.082], pulse_width_s=0.014)
+
+    wood_body = multi_resonance(
+        duration_s,
+        [
+            (148.0, 0.55, 30.0),
+            (228.0, 0.34, 36.0),
+            (332.0, 0.18, 42.0),
+        ],
+    ) * pulse_env
+
+    latch_noise = bandpass_fft(lowpass_noise(duration_s, 4200.0, rng), 1450.0, 1800.0)
+    latch = latch_noise * pulse_env * 0.22
+
+    handle_ring = multi_resonance(
+        duration_s,
+        [
+            (980.0, 0.20, 65.0),
+            (1340.0, 0.12, 72.0),
+            (1840.0, 0.07, 80.0),
+        ],
+    ) * handle_env
+
+    sub_thump = bandpass_fft(lowpass_noise(duration_s, 1800.0, rng), 220.0, 240.0)
+    sub_thump *= pulse_env * 0.10
+
+    signal = wood_body + latch + handle_ring + sub_thump
+    signal *= np.exp(-4.5 * t)
+    return fade_out(signal, 20.0)
+
+
 def main() -> None:
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     rng = np.random.default_rng(RNG_SEED)
 
     open_samples = generate_door_open_creak(rng)
     close_samples = generate_door_close_clunk(rng)
+    locked_samples = generate_door_locked_rattle(rng)
 
     open_path = os.path.join(OUTPUT_DIR, "door_open_creak.wav")
     close_path = os.path.join(OUTPUT_DIR, "door_close_clunk.wav")
+    locked_path = os.path.join(OUTPUT_DIR, "door_locked_rattle.wav")
     write_wav(open_path, open_samples)
     write_wav(close_path, close_samples)
+    write_wav(locked_path, locked_samples)
 
     print(f"wrote {os.path.basename(open_path)} ({len(open_samples) / SAMPLE_RATE:.2f}s)")
     print(f"wrote {os.path.basename(close_path)} ({len(close_samples) / SAMPLE_RATE:.2f}s)")
+    print(f"wrote {os.path.basename(locked_path)} ({len(locked_samples) / SAMPLE_RATE:.2f}s)")
 
 
 if __name__ == "__main__":

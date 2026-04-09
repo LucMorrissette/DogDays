@@ -23,6 +23,7 @@ public sealed record MapConfig(
     // ── Known map asset names ───────────────────────────────────────────────
     private const string WoodsMap = "Maps/WoodsBehindCabin";
     private const string CabinIndoorsMap = "Maps/CabinIndoors";
+    private const string CabinBedroomMap = "Maps/CabinBedroom";
 
     // ── Follower config variants ────────────────────────────────────────────
     private static readonly FollowerMovementConfig DefaultFollower = FollowerMovementConfig.Default;
@@ -49,6 +50,13 @@ public sealed record MapConfig(
             HasAmbientFireflies: true),
 
         CabinIndoorsMap => new MapConfig(
+            SongName: "CabinIndoorsTheme",
+            FollowerConfig: DefaultFollower,
+            HasDayNightCycle: true,
+            HasCloudShadows: false,
+            HasAmbientFireflies: false),
+
+        CabinBedroomMap => new MapConfig(
             SongName: "CabinIndoorsTheme",
             FollowerConfig: DefaultFollower,
             HasDayNightCycle: true,

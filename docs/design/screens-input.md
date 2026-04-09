@@ -11,8 +11,7 @@
 | `ConfirmationScreen` | Screen (overlay) | Transparent overlay (`IsTransparent = true`) for yes/no confirmation prompts. Renders a centered prompt string with Up/Down cursor navigation and a result callback (`Action<bool>? OnResult`). Pressing Confirm fires the callback with `true`; Cancel fires it with `false` and pops the screen. Constructor takes `ScreenManager`, `GraphicsDevice`, `int virtualWidth`, `int virtualHeight`, `string promptText`, `Action<bool>? onResult`. |
 | `DeathScreen` | Screen | Full-screen death screen shown when the player dies. Renders a CRT static noise overlay (regenerated each frame via `PerlinNoise`) over a black background, draws "MISSION FAILED" and score text via `DrawOverlay`. Fades in, holds for ~18 s, then fades out and fires a transition callback (`Action? OnTransitionComplete`). Constructor takes `ScreenManager`, `GraphicsDevice`, `int virtualWidth`, `int virtualHeight`. |
 | `FishingScreen` | Screen | Side-view fishing mini-game screen. Owns `SimpleTiledRenderer` for the fishing-spot TMX map, animated `FishSilhouette` entities, `FishingRippleManager` for GPU ripple/splash/spook rings, `SkyCloudRenderer` for a procedural cloud skybox, and GPU-decoupled `FishingCastLogic` for cast state. Renders via `FishingWater.fx` shader with a power-gauge, fishing line, lure, and aim arrow. Returns to the calling screen via a `BeginReturnTransition` callback after a catch or cancel. |
-
-*(Add entries as screens are created — TitleScreen, etc.)*
+| `TitleScreen` | Screen | Opaque start screen shown on boot. Draws the splash image at virtual resolution, renders "New Game" and "Continue" menu options via `DrawOverlay` at native resolution. Checks `ISaveGameService.HasSave` to grey out Continue when no save exists. Replaces itself with `GameplayScreen` on selection — fresh for New Game, or loaded from the most recent save slot for Continue. |
 
 ## IGameScreen API
 

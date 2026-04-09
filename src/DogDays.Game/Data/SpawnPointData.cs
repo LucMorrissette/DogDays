@@ -7,4 +7,5 @@ namespace DogDays.Game.Data;
 /// </summary>
 /// <param name="Name">Unique name identifying this spawn point (e.g., "from-starter", "default").</param>
 /// <param name="Position">World-space position in pixels.</param>
-public readonly record struct SpawnPointData(string Name, Vector2 Position);
+/// <param name="Facing">Optional facing direction the player should use when spawning here.</param>
+public readonly record struct SpawnPointData(string Name, Vector2 Position, FacingDirection? Facing = null);
