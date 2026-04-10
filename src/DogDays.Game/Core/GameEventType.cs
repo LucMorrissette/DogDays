@@ -8,6 +8,9 @@ internal enum GameEventType
     /// <summary>Fired when the player starts a conversation with an NPC.</summary>
     NpcTalkedTo,
 
+    /// <summary>Fired when a named narrative story beat resolves.</summary>
+    StoryBeatReached,
+
     /// <summary>Fired when the player enters a gameplay or mini-game map.</summary>
     ZoneEntered,
 

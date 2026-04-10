@@ -6,19 +6,22 @@ namespace DogDays.Game.Data;
 /// Immutable per-map configuration that controls which gameplay systems are active.
 /// Replaces the five <c>string switch</c> helper methods that lived in <c>GameplayScreen</c>:
 /// <c>GetSongForMap</c>, <c>GetFollowerConfigForMap</c>, <c>HasDayNightCycle</c>,
-/// <c>HasCloudShadows</c>, and <c>HasAmbientFireflies</c>.
+/// <c>HasCloudShadows</c>, <c>HasAmbientFireflies</c>, and temporary starter-weapon
+/// auto-grant wiring.
 /// </summary>
 /// <param name="SongName">Content asset name for the background music track.</param>
 /// <param name="FollowerConfig">Follower movement tuning for this map.</param>
 /// <param name="HasDayNightCycle">Whether the day/night lighting cycle runs on this map.</param>
 /// <param name="HasCloudShadows">Whether cloud shadow rendering is active on this map.</param>
 /// <param name="HasAmbientFireflies">Whether ambient fireflies spawn on this map.</param>
+/// <param name="AutoEnableStarterWeapons">Whether this map should auto-enable the current starter weapon loadout.</param>
 public sealed record MapConfig(
     string SongName,
     FollowerMovementConfig FollowerConfig,
     bool HasDayNightCycle,
     bool HasCloudShadows,
-    bool HasAmbientFireflies)
+    bool HasAmbientFireflies,
+    bool AutoEnableStarterWeapons)
 {
     // ── Known map asset names ───────────────────────────────────────────────
     private const string WoodsMap = "Maps/WoodsBehindCabin";
@@ -47,27 +50,31 @@ public sealed record MapConfig(
             FollowerConfig: WoodsFollower,
             HasDayNightCycle: false,
             HasCloudShadows: true,
-            HasAmbientFireflies: true),
+            HasAmbientFireflies: true,
+            AutoEnableStarterWeapons: false),
 
         CabinIndoorsMap => new MapConfig(
             SongName: "CabinIndoorsTheme",
             FollowerConfig: DefaultFollower,
             HasDayNightCycle: true,
             HasCloudShadows: false,
-            HasAmbientFireflies: false),
+            HasAmbientFireflies: false,
+            AutoEnableStarterWeapons: false),
 
         CabinBedroomMap => new MapConfig(
             SongName: "CabinIndoorsTheme",
             FollowerConfig: DefaultFollower,
             HasDayNightCycle: true,
             HasCloudShadows: false,
-            HasAmbientFireflies: false),
+            HasAmbientFireflies: false,
+            AutoEnableStarterWeapons: false),
 
         _ => new MapConfig(
             SongName: "GameplayTheme",
             FollowerConfig: DefaultFollower,
             HasDayNightCycle: true,
             HasCloudShadows: true,
-            HasAmbientFireflies: true),
+            HasAmbientFireflies: true,
+            AutoEnableStarterWeapons: false),
     };
 }

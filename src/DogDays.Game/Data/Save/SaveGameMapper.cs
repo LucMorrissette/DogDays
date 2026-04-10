@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using DogDays.Data;
+using DogDays.Game.Core;
 using DogDays.Game.Data;
 using DogDays.Game.Data.Save;
 using DogDays.Game.Systems;
@@ -23,6 +24,7 @@ internal static class SaveGameMapper
     /// <param name="playerFacing">Player facing direction.</param>
     /// <param name="mapAssetName">Current zone map asset name.</param>
     /// <param name="questManager">Quest manager holding all quest states.</param>
+    /// <param name="progression">Session progression unlocks.</param>
     /// <param name="combatStats">Player combat stats (may be null if not in forest).</param>
     /// <param name="dayNightCycleProgress">Current day/night cycle progress (0–1).</param>
     /// <param name="watercraftStates">Saved state for movable watercraft across visited maps.</param>
@@ -31,6 +33,7 @@ internal static class SaveGameMapper
         FacingDirection playerFacing,
         string mapAssetName,
         QuestManager questManager,
+        PlayerProgressionState progression,
         PlayerCombatStats? combatStats,
         float dayNightCycleProgress,
         SaveWatercraftData[] watercraftStates)
@@ -41,6 +44,7 @@ internal static class SaveGameMapper
             SavedAtUtc = DateTime.UtcNow,
             Player = CapturePlayer(playerPosition, playerFacing, mapAssetName),
             Quests = CaptureQuests(questManager),
+            Progression = CaptureProgression(progression),
             CombatStats = CaptureCombatStats(combatStats),
             DayNight = new SaveDayNightData { CycleProgress = dayNightCycleProgress },
             Watercraft = CaptureWatercraft(watercraftStates),
@@ -75,6 +79,26 @@ internal static class SaveGameMapper
 
             questState.RestoreState(savedQuest.Status, savedQuest.CurrentObjectiveIndex, savedQuest.ObjectiveProgress);
         }
+    }
+
+    /// <summary>
+    /// Restores session progression unlocks from a save snapshot.
+    /// </summary>
+    /// <param name="data">Saved data to restore from.</param>
+    /// <param name="gameSessionServices">Target session services to populate.</param>
+    internal static void RestoreProgression(SaveGameData data, GameSessionServices gameSessionServices)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        ArgumentNullException.ThrowIfNull(gameSessionServices);
+
+        var saved = data.Progression;
+        if (saved is null)
+        {
+            gameSessionServices.Progression.Reset();
+            return;
+        }
+
+        gameSessionServices.Progression.HasForestStarterWeapons = saved.HasForestStarterWeapons;
     }
 
     /// <summary>
@@ -139,6 +163,16 @@ internal static class SaveGameMapper
         }
 
         return result;
+    }
+
+    private static SavePlayerProgressionData CaptureProgression(PlayerProgressionState progression)
+    {
+        ArgumentNullException.ThrowIfNull(progression);
+
+        return new SavePlayerProgressionData
+        {
+            HasForestStarterWeapons = progression.HasForestStarterWeapons,
+        };
     }
 
     private static SaveCombatStatsData CaptureCombatStats(PlayerCombatStats? stats)

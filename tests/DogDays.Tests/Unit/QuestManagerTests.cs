@@ -40,6 +40,27 @@ public class QuestManagerTests
     }
 
     [Fact]
+    public void Publish__StartsStoryBeatQuestAndCompletesItOnForestZoneEnter()
+    {
+        var (bus, manager) = CreateManager(
+            CreateQuest(
+                "search-for-gnome-chompsky",
+                [CreateObjective("search-for-the-missing-gnome", GameEventType.ZoneEntered, "Maps/WoodsBehindCabin")],
+                startCondition: CreateCondition(GameEventType.StoryBeatReached, "missing_gnome_warning")));
+
+        bus.Publish(GameEventType.StoryBeatReached, "missing_gnome_warning", 1);
+
+        var quest = manager.GetQuest("search-for-gnome-chompsky")!;
+        Assert.Equal(QuestStatus.Active, quest.Status);
+        Assert.Single(manager.ActiveQuests);
+
+        bus.Publish(GameEventType.ZoneEntered, "Maps/WoodsBehindCabin", 1);
+
+        Assert.Equal(QuestStatus.Completed, quest.Status);
+        Assert.Empty(manager.ActiveQuests);
+    }
+
+    [Fact]
     public void Publish__SupportsMultipleActiveQuests__AtTheSameTime()
     {
         var (bus, manager) = CreateManager(
@@ -174,6 +195,56 @@ public class QuestManagerTests
         Assert.Equal("quest-a", manager.TrackedQuest!.Definition.Id);
     }
 
+    [Fact]
+    public void MainQuest__ReturnsActiveMainQuest__EvenWhenTrackedQuestIsSideQuest()
+    {
+        var (_, manager) = CreateManager(
+            CreateQuest(
+                "main-quest",
+                [CreateObjective("main", GameEventType.NpcTalkedTo, "mom")],
+                autoStart: true,
+                isMainQuest: true,
+                npcDialogs:
+                [
+                    CreateNpcDialog(
+                        "grandpa",
+                        new DialogLine("Grandpa", "Try the woods behind the shed."))
+                ]),
+            CreateQuest(
+                "side-quest",
+                [CreateObjective("side", GameEventType.NpcTalkedTo, "grandpa")],
+                autoStart: true));
+
+        manager.SetTrackedQuest("side-quest");
+
+        Assert.Equal("main-quest", manager.MainQuest!.Definition.Id);
+    }
+
+    [Fact]
+    public void ResolveMainQuestNpcDialog__ReturnsAuthoredDialog__ForCurrentMainQuest()
+    {
+        var (_, manager) = CreateManager(
+            CreateQuest(
+                "main-quest",
+                [CreateObjective("main", GameEventType.NpcTalkedTo, "mom")],
+                autoStart: true,
+                isMainQuest: true,
+                npcDialogs:
+                [
+                    CreateNpcDialog(
+                        "grandpa",
+                        new DialogLine("Grandpa", "Try the woods behind the shed."),
+                        new DialogLine("Grandpa", "And keep your eyes open."))
+                ]));
+
+        var dialog = manager.ResolveMainQuestNpcDialog("grandpa");
+
+        Assert.NotNull(dialog);
+        Assert.Equal(2, dialog!.LineCount);
+        Assert.Equal("Try the woods behind the shed.", dialog.Lines[0].Text);
+        Assert.Equal("And keep your eyes open.", dialog.Lines[1].Text);
+    }
+
     private static (GameEventBus bus, QuestManager manager) CreateManager(params QuestDefinition[] definitions)
     {
         var bus = new GameEventBus();
@@ -186,7 +257,9 @@ public class QuestManagerTests
         string id,
         ObjectiveDefinition[] objectives,
         bool autoStart = false,
-        QuestEventConditionDefinition? startCondition = null)
+        QuestEventConditionDefinition? startCondition = null,
+        bool isMainQuest = false,
+        QuestNpcDialogDefinition[]? npcDialogs = null)
     {
         return new QuestDefinition
         {
@@ -194,8 +267,19 @@ public class QuestManagerTests
             Title = id,
             Description = $"Description for {id}.",
             AutoStart = autoStart,
+            IsMainQuest = isMainQuest,
             StartCondition = startCondition,
+            NpcDialogs = npcDialogs ?? [],
             Objectives = objectives,
+        };
+    }
+
+    private static QuestNpcDialogDefinition CreateNpcDialog(string npcId, params DialogLine[] lines)
+    {
+        return new QuestNpcDialogDefinition
+        {
+            NpcId = npcId,
+            Lines = lines,
         };
     }
 

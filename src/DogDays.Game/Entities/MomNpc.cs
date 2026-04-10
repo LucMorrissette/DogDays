@@ -20,7 +20,7 @@ namespace DogDays.Game.Entities;
 /// Delegates route selection and progress tracking to an <see cref="IndoorNavigator"/>
 /// component, and handles movement, collision, and rendering locally.
 /// </summary>
-public sealed class MomNpc : IWorldProp, IDialogSpeaker
+public sealed class MomNpc : IWorldProp, IDialogSpeaker, IScriptControllableNpc
 {
     private const float MoveSpeedPixelsPerSecond = 28f;
 
@@ -33,11 +33,11 @@ public sealed class MomNpc : IWorldProp, IDialogSpeaker
 
     private static readonly DialogScript[] _dialogPool = new DialogScript[]
     {
-        new DialogScript(new DialogLine("Mom", "Don't stay out too late — the woods are strange at night.")),
-        new DialogScript(new DialogLine("Mom", "Have you eaten? I made soup. It's on the stove.")),
-        new DialogScript(new DialogLine("Mom", "I heard footsteps near the dock again. Be careful out there.")),
-        new DialogScript(new DialogLine("Mom", "Your coat is by the door. Take it — it's cold this morning.")),
-        new DialogScript(new DialogLine("Mom", "I'm proud of you, you know. Now go on — adventure awaits.")),
+        new DialogScript(new DialogLine("Mom", "If you and your friend head to the river, be back before supper.")),
+        new DialogScript(new DialogLine("Mom", "Your boots are by the door. The bank gets muddy this time of year.")),
+        new DialogScript(new DialogLine("Mom", "Summer starts quietly out here. Try to enjoy that while it lasts.")),
+        new DialogScript(new DialogLine("Mom", "The cottage feels brighter when the two of you are tearing around it.")),
+        new DialogScript(new DialogLine("Mom", "Mind the current if you wander too far downriver.")),
     };
 
     private readonly IndoorNavigator _navigator;
@@ -50,6 +50,7 @@ public sealed class MomNpc : IWorldProp, IDialogSpeaker
     private Vector2 _position;
     private FacingDirection _facing = FacingDirection.Down;
     private bool _isMoving;
+    private bool _autonomousBehaviorEnabled = true;
 
     /// <summary>
     /// Creates a Mom NPC that patrols using the supplied navigation graph.
@@ -89,6 +90,72 @@ public sealed class MomNpc : IWorldProp, IDialogSpeaker
 
     /// <summary>Whether the NPC moved this frame.</summary>
     public bool IsMoving => _isMoving;
+    
+    Vector2 IScriptControllableNpc.NavigationPosition => _position + _footCenterOffset;
+
+    void IScriptControllableNpc.SetAutonomousBehaviorEnabled(bool isEnabled)
+    {
+        if (_autonomousBehaviorEnabled == isEnabled)
+        {
+            return;
+        }
+
+        _autonomousBehaviorEnabled = isEnabled;
+        _isMoving = false;
+
+        if (isEnabled)
+        {
+            _navigator.ResetFrom(_position + _footCenterOffset);
+        }
+    }
+
+    void IScriptControllableActor.SetPosition(Vector2 position)
+    {
+        _position = position;
+        _isMoving = false;
+    }
+
+    void IScriptControllableActor.SetFacing(FacingDirection facing)
+    {
+        _facing = facing;
+    }
+
+    bool IScriptControllableActor.ApplyScriptedMovement(Vector2 movementDelta) =>
+        ApplyScriptedMovementInternal(movementDelta, collisionData: null);
+
+    bool IScriptControllableNpc.ApplyScriptedMovement(Vector2 movementDelta, IMapCollisionData? collisionData) =>
+        ApplyScriptedMovementInternal(movementDelta, collisionData);
+
+    private bool ApplyScriptedMovementInternal(Vector2 movementDelta, IMapCollisionData? collisionData)
+    {
+        if (movementDelta == Vector2.Zero)
+        {
+            _isMoving = false;
+            return false;
+        }
+
+        UpdateFacing(movementDelta);
+
+        var moved = false;
+
+        if (movementDelta.X != 0f)
+        {
+            moved |= TryMoveOnAxis(new Vector2(movementDelta.X, 0f), collisionData);
+        }
+
+        if (movementDelta.Y != 0f)
+        {
+            moved |= TryMoveOnAxis(new Vector2(0f, movementDelta.Y), collisionData);
+        }
+
+        _isMoving = moved;
+        return moved;
+    }
+
+    void IScriptControllableActor.ClearMovementState()
+    {
+        _isMoving = false;
+    }
 
     /// <summary>The node id of the current destination, or -1 if none.</summary>
     public int DestinationNodeId => _navigator.DestinationNodeId;
@@ -115,6 +182,12 @@ public sealed class MomNpc : IWorldProp, IDialogSpeaker
     /// </summary>
     public void Update(GameTime gameTime, IMapCollisionData? collisionData = null)
     {
+        if (!_autonomousBehaviorEnabled)
+        {
+            _isMoving = false;
+            return;
+        }
+
         var elapsed = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
         // Navigation uses foot center so arrival checks and steering align with the

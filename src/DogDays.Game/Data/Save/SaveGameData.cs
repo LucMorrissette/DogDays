@@ -8,7 +8,7 @@ namespace DogDays.Game.Data.Save;
 internal sealed class SaveGameData
 {
     /// <summary>Current save schema version. Increment when the schema changes.</summary>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     /// <summary>Save schema version used when this data was written.</summary>
     public int Version { get; set; } = CurrentVersion;
@@ -24,6 +24,9 @@ internal sealed class SaveGameData
 
     /// <summary>Combat stats snapshot (forest minigame).</summary>
     public SaveCombatStatsData CombatStats { get; set; } = new();
+
+    /// <summary>Player progression unlock snapshot.</summary>
+    public SavePlayerProgressionData Progression { get; set; } = new();
 
     /// <summary>Day/night cycle snapshot.</summary>
     public SaveDayNightData DayNight { get; set; } = new();

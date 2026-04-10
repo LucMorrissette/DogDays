@@ -11,7 +11,7 @@ namespace DogDays.Game.Entities;
 /// <summary>
 /// Player entity with sprite-animated, four-direction movement.
 /// </summary>
-public sealed class PlayerBlock : IWorldProp
+public sealed class PlayerBlock : IWorldProp, IScriptControllableActor
 {
     private readonly Vector2 _size;
     private readonly float _moveSpeedPixelsPerSecond;
@@ -205,6 +205,25 @@ public sealed class PlayerBlock : IWorldProp
     }
 
     /// <summary>
+    /// Applies scripted movement without collision checks for authored cutscene beats.
+    /// </summary>
+    /// <param name="movementDelta">World-space movement delta in pixels for this frame.</param>
+    internal bool ApplyScriptedMovement(Vector2 movementDelta)
+    {
+        if (movementDelta == Vector2.Zero)
+        {
+            _isMoving = false;
+            return false;
+        }
+
+        UpdateFacing(movementDelta);
+        _position = ClampPosition(_position + movementDelta);
+        _isMoving = true;
+        _currentSpeedFraction = 0f;
+        return true;
+    }
+
+    /// <summary>
     /// Clears transient movement state when movement is driven by a non-standard sequence.
     /// </summary>
     internal void ClearMovementState()
@@ -212,6 +231,14 @@ public sealed class PlayerBlock : IWorldProp
         _isMoving = false;
         _currentSpeedFraction = 0f;
     }
+
+    void IScriptControllableActor.SetPosition(Vector2 position) => SetPosition(position);
+
+    void IScriptControllableActor.SetFacing(FacingDirection facing) => SetFacing(facing);
+
+    bool IScriptControllableActor.ApplyScriptedMovement(Vector2 movementDelta) => ApplyScriptedMovement(movementDelta);
+
+    void IScriptControllableActor.ClearMovementState() => ClearMovementState();
 
     /// <summary>
     /// Draws the player via a sprite animator.

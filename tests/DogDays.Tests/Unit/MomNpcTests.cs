@@ -147,6 +147,53 @@ public class MomNpcTests
     }
 
     [Fact]
+    public void Update__DoesNotMoveWhileAutonomyDisabled()
+    {
+        var mom = new MomNpc(new Vector2(100f, 100f), FrameSize, SquareGraph(), random: new Random(42));
+        var scriptedNpc = (IScriptControllableNpc)mom;
+
+        scriptedNpc.HoldForScriptedSequence(new Vector2(210f, 108f), FacingDirection.Down);
+
+        mom.Update(FakeGameTime.FromSeconds(1f));
+
+        Assert.Equal(new Vector2(210f, 108f), mom.Position);
+        Assert.Equal(FacingDirection.Down, mom.Facing);
+        Assert.False(mom.IsMoving);
+    }
+
+    [Fact]
+    public void Update__ResumesPatrolAfterAutonomyReenabled()
+    {
+        var mom = new MomNpc(new Vector2(100f, 100f), FrameSize, SquareGraph(), random: new Random(42));
+        var scriptedNpc = (IScriptControllableNpc)mom;
+
+        scriptedNpc.HoldForScriptedSequence(new Vector2(210f, 108f), FacingDirection.Down);
+        scriptedNpc.SetAutonomousBehaviorEnabled(true);
+
+        mom.Update(FakeGameTime.FromSeconds(0.5f));
+
+        Assert.True(mom.IsMoving);
+    }
+
+    [Fact]
+    public void ScriptedMovement__DoesNotWalkThroughCollisionObstacle()
+    {
+        var mom = new MomNpc(new Vector2(100f, 100f), FrameSize, SquareGraph(), random: new Random(42));
+        var scriptedNpc = (IScriptControllableNpc)mom;
+        var couch = new DelegateCollisionData(bounds => bounds.Left < 132 && bounds.Right > 116 && bounds.Top < 160 && bounds.Bottom > 96);
+
+        scriptedNpc.HoldForScriptedSequence(new Vector2(100f, 100f), FacingDirection.Right);
+
+        for (var i = 0; i < 60; i++)
+        {
+            scriptedNpc.ApplyScriptedMovement(new Vector2(1f, 0f), couch);
+        }
+
+        Assert.True(mom.FootBounds.Right <= 132,
+            $"Mom's foot right edge ({mom.FootBounds.Right}) should stop at the obstacle instead of passing through it.");
+    }
+
+    [Fact]
     public void Update__PausesOnArrivalAtDestination()
     {
         var graph = TwoNodeGraph(new Vector2(100f, 100f), new Vector2(100f, 200f));

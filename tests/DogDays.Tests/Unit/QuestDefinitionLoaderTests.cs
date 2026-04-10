@@ -16,6 +16,18 @@ public class QuestDefinitionLoaderTests
             "title": "Meet Grandpa",
             "description": "Say hello outside the cabin.",
             "autoStart": true,
+            "isMainQuest": true,
+            "npcDialogs": [
+              {
+                "npcId": "grandpa",
+                "lines": [
+                  {
+                    "speakerName": "Grandpa",
+                    "text": "Don't keep your mom waiting."
+                  }
+                ]
+              }
+            ],
             "objectives": [
               {
                 "id": "talk-to-grandpa",
@@ -40,6 +52,10 @@ public class QuestDefinitionLoaderTests
             Assert.Single(definitions);
             Assert.Equal("meet-grandpa", definitions[0].Id);
             Assert.True(definitions[0].AutoStart);
+      Assert.True(definitions[0].IsMainQuest);
+      Assert.Single(definitions[0].NpcDialogs);
+      Assert.Equal("grandpa", definitions[0].NpcDialogs[0].NpcId);
+      Assert.Equal("Don't keep your mom waiting.", definitions[0].NpcDialogs[0].Lines[0].Text);
             Assert.Equal(GameEventType.NpcTalkedTo, definitions[0].Objectives[0].Completion.EventType);
             Assert.Equal("grandpa", definitions[0].Objectives[0].Completion.TargetId);
         }
@@ -115,6 +131,100 @@ public class QuestDefinitionLoaderTests
                 "completion": {
                   "eventType": "EnemyKilled",
                   "requiredCount": 0
+                }
+              }
+            ]
+          }
+        ]
+        """;
+
+        var filePath = WriteTempQuestFile(json);
+
+        try
+        {
+            Assert.Throws<InvalidDataException>(() => QuestDefinitionLoader.LoadFromFile(filePath));
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void LoadFromFile__Throws__WhenMainQuestLacksGrandpaDialog()
+    {
+        const string json = """
+        [
+          {
+            "id": "broken-main-quest",
+            "title": "Broken Main Quest",
+            "description": "This should fail validation.",
+            "isMainQuest": true,
+            "objectives": [
+              {
+                "id": "talk-to-mom",
+                "description": "Talk to Mom.",
+                "completion": {
+                  "eventType": "NpcTalkedTo",
+                  "targetId": "mom",
+                  "requiredCount": 1
+                }
+              }
+            ]
+          }
+        ]
+        """;
+
+        var filePath = WriteTempQuestFile(json);
+
+        try
+        {
+            Assert.Throws<InvalidDataException>(() => QuestDefinitionLoader.LoadFromFile(filePath));
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void LoadFromFile__Throws__WhenQuestNpcDialogIdsAreDuplicated()
+    {
+        const string json = """
+        [
+          {
+            "id": "broken-main-quest",
+            "title": "Broken Main Quest",
+            "description": "This should fail validation.",
+            "isMainQuest": true,
+            "npcDialogs": [
+              {
+                "npcId": "grandpa",
+                "lines": [
+                  {
+                    "speakerName": "Grandpa",
+                    "text": "One."
+                  }
+                ]
+              },
+              {
+                "npcId": "grandpa",
+                "lines": [
+                  {
+                    "speakerName": "Grandpa",
+                    "text": "Two."
+                  }
+                ]
+              }
+            ],
+            "objectives": [
+              {
+                "id": "talk-to-mom",
+                "description": "Talk to Mom.",
+                "completion": {
+                  "eventType": "NpcTalkedTo",
+                  "targetId": "mom",
+                  "requiredCount": 1
                 }
               }
             ]

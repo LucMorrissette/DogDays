@@ -17,11 +17,13 @@
 | `IGameScreen` | `Screens/` | Screen lifecycle contract (load, update, draw, unload, transparency). |
 | `ScreenManager` | `Screens/` | Stack-based screen host. Push/pop/replace semantics with deferred mutation during update. |
 | `GameEventBus` | `Core/` | Type-keyed publish/subscribe hub for cross-system gameplay events used by quests and other session-scoped progression features. |
-| `GameSessionServices` | `Core/` | Shared runtime service bundle that survives screen replacement and carries the session event bus, quest manager, and save game service. |
+| `GameSessionServices` | `Core/` | Shared runtime service bundle that survives screen replacement and carries the session event bus, quest manager, save game service, per-map watercraft state, and session-scoped player progression unlocks. |
 | `ISaveGameService` | `Core/` | Abstraction for persisting and loading save game data. Supports multiple slots, save/load/delete/query operations. |
+| `IScriptControllableActor` | `Entities/` | Shared contract for any actor a scripted sequence can position, face, move, and idle-cleanup without depending on a concrete class. |
+| `IScriptControllableNpc` | `Entities/` | Extension of `IScriptControllableActor` for autonomous patrol or ambient NPCs that can be paused, expose a stable navigation position for route planning, move with collision-aware scripted motion, and later resume by a scripted sequence. |
 | `JsonSaveGameService` | `Data/Save/` | `ISaveGameService` implementation that writes JSON files to `%APPDATA%/DogDays/saves/`. Uses atomic writes (tmp + rename). |
 | `SaveGameMapper` | `Data/Save/` | Static capture/restore mapper — single source of truth for converting live game state to/from `SaveGameData`. |
-| `QuestDefinitionLoader` | `Data/` | Loads quest definitions from raw JSON and validates ids, objective structure, and required counts before runtime state is created. |
+| `QuestDefinitionLoader` | `Data/` | Loads quest definitions from raw JSON and validates ids, objective structure, main-quest NPC hint requirements, and required counts before runtime state is created. |
 
 *(Add entries as core classes are created — GameEvents, Direction, IMapCollisionData, etc.)*
 
@@ -40,6 +42,8 @@
 | `LightData` | `Graphics/` | Immutable frame snapshot of a world point light: position, radius, color, and intensity. Used to pass lighting data from entities to the renderer without coupling rendering code to entity references. |
 | `ParticleProfile` | `Data/` | Immutable `record` defining particle effect configuration: spawn rate, life range, speed range, scale range, start/end colors, spread angle, gravity, and optional local ground-bounce settings. Used by `ParticleEmitter` and `ParticleManager.Emit()`. |
 | `Particle` | `Systems/` | Value-type `struct` representing a single particle: position, velocity, rotation, angular velocity, scale, start/end colors, gravity, optional local ground-plane bounce state, initial/remaining life, and active flag. Designed for cache-friendly iteration in `ParticleManager`. |
+| `ScriptedPositionDirective` | `Data/` | Immutable authored position directive that resolves from a named spawn point plus an offset, with a screen-supplied fallback when the anchor is unavailable. |
+| `ScriptedActorPoseDirective` | `Data/` | Immutable authored pose directive that combines a scripted position directive with a facing direction for actor placement during a sequence. |
 | `SpawnPointData` | `Data/` | Immutable record describing a named world-space spawn position parsed from a TMX `SpawnPoints` object layer. |
 | `ZoneTriggerData` | `Data/` | Immutable record describing a world-space transition rectangle plus its destination map asset and spawn id, parsed from a TMX `ZoneTriggers` object layer. |
 | `EnemyType` | `Data/` | Enum identifying an enemy variant kind. Each value maps to a set of visual and behavioral parameter overrides (tint, scale, speed multiplier, HP, on-death behavior) applied to a `GnomeEnemy` at spawn time. The spawner selects a type from the current wave's configured mix. |
@@ -54,11 +58,14 @@
 | `QuestStatus` | `Data/` | Enum tracking whether a quest is not started, active, completed, or failed in the current play session. |
 | `QuestEventConditionDefinition` | `Data/` | Event requirement used by quest start triggers and objective completion checks. Matches a `GameEventType`, optional target id, and required count. |
 | `ObjectiveDefinition` | `Data/` | Immutable quest objective definition loaded from JSON, including player-facing text and an event-driven completion rule. |
-| `QuestDefinition` | `Data/` | Immutable linear quest definition loaded from JSON, including id, title, description, optional start trigger, auto-start flag, and ordered objectives. |
+| `QuestNpcDialogDefinition` | `Data/` | Immutable authored NPC dialog override for a quest, keyed by `NpcId` and storing ordered `DialogLine` entries. |
+| `QuestDefinition` | `Data/` | Immutable linear quest definition loaded from JSON, including id, title, description, optional start trigger, auto-start flag, optional main-quest flag, optional per-NPC dialog overrides, and ordered objectives. |
 | `QuestState` | `Data/` | Mutable runtime quest progress for a loaded `QuestDefinition`, tracking current objective index and per-objective counters. Supports `RestoreState()` for save/load. |
+| `PlayerProgressionState` | `Data/` | Session-scoped mutable unlock flags for progression-gated capabilities such as the forest starter weapon loadout. Reset on new game and persisted through save/load. |
 | `SaveGameData` | `Data/Save/` | Root save DTO. Contains version, timestamp, and nested DTOs for player, quests, combat stats, and day/night state. |
 | `SavePlayerData` | `Data/Save/` | Player position, facing direction, and current zone map asset name. |
 | `SaveQuestStateData` | `Data/Save/` | Per-quest snapshot: quest id, status, objective index, and progress counters. |
+| `SavePlayerProgressionData` | `Data/Save/` | Snapshot of progression unlock flags that survive save/load independently of combat stat tuning. |
 | `SaveCombatStatsData` | `Data/Save/` | Forest combat stat snapshot: max HP, level, XP, multipliers. |
 | `SaveDayNightData` | `Data/Save/` | Day/night cycle progress (0–1 float). |
 
@@ -66,6 +73,13 @@
 
 | Class | Description |
 |---|---|
+| `ScriptControllableActorExtensions` | Shared helper methods for applying an immediate scripted pose and freezing autonomous NPCs for a scripted sequence. |
+| `MissingGnomeDefinition` | Focused authored definition for the cottage-exit missing-gnome beat: Mom approach directives, dialog payload, quest/story-beat ids, and exit-trigger gating rules. |
+| `QuestNpcDialogRegistry` | Reusable runtime lookup that resolves authored NPC dialog overrides by quest id and NPC id for story-reactive bark interactions. |
+| `ScriptedActorMotion` | Shared delta-time movement helper for steering scripted actors toward authored target positions without sequence-specific movement code duplication. |
+| `ScriptedNpcRoute` | Shared scripted path follower that reuses indoor nav-graph A* routes for authored patrol-NPC movement around furniture and other obstacles. |
+| `ScriptedPositionResolver` | Shared helper that resolves scripted actor positions and poses from named map anchors plus authored offsets. |
+| `SummerIntroDefinition` | Focused authored definition for the summer opener's dialogs, anchor directives, fallback offsets, and transition metadata. |
 | `PerlinNoise` | Static 2D Perlin noise generator with tileable output. Provides single-sample and multi-octave fBm noise-map generation for procedural textures. |
 | `PolygonBounds` | Convex or concave polygon shape used to define irregular swim areas in the fishing mini-game. Supports point containment (`Contains`), random interior sampling (`RandomPointInside`), inset erosion (`Inset`), horizontal slicing (`SliceHorizontal`), and rectangle conversion (`FromRectangle`). Parsed from TMX polygon objects by `SimpleTiledRenderer.GetObjectPolygons()`. |
 

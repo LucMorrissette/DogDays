@@ -64,6 +64,7 @@ public sealed class JsonSaveGameServiceTests : IDisposable
         Assert.Equal(FacingDirection.Right, loaded.Player.Facing);
         Assert.Equal("Maps/StarterMap", loaded.Player.ZoneMapAssetName);
         Assert.Equal(0.6f, loaded.DayNight.CycleProgress);
+        Assert.True(loaded.Progression.HasForestStarterWeapons);
         Assert.Equal(8, loaded.CombatStats.MaxHp);
         Assert.Equal(3, loaded.CombatStats.Level);
         Assert.Single(loaded.Watercraft);
@@ -173,6 +174,10 @@ public sealed class JsonSaveGameServiceTests : IDisposable
                     CurrentObjectiveIndex = 1,
                     ObjectiveProgress = new[] { 3, 0 },
                 },
+            },
+            Progression = new SavePlayerProgressionData
+            {
+                HasForestStarterWeapons = true,
             },
             CombatStats = new SaveCombatStatsData
             {

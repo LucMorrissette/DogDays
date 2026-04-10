@@ -101,6 +101,28 @@ public sealed class IndoorNavGraph
     }
 
     /// <summary>
+    /// Returns the first node whose name matches the supplied value, or <c>null</c> if none match.
+    /// </summary>
+    /// <param name="name">Human-readable node name to look up.</param>
+    public IndoorNavNode? FindNodeByName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        for (int i = 0; i < _nodes.Count; i++)
+        {
+            if (string.Equals(_nodes[i].Name, name, StringComparison.Ordinal))
+            {
+                return _nodes[i];
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Removes adjacency entries for links whose straight-line path is blocked
     /// by collision. Sweeps a foot-bounds rectangle along each link at
     /// <paramref name="sweepStep"/> pixel intervals. Node positions are treated

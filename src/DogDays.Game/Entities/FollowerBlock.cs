@@ -12,7 +12,7 @@ namespace DogDays.Game.Entities;
 /// <summary>
 /// Follower entity that trails behind the leader along a recorded breadcrumb path.
 /// </summary>
-public sealed class FollowerBlock : IWorldProp
+public sealed class FollowerBlock : IWorldProp, IScriptControllableActor
 {
     private readonly Vector2 _size;
     private readonly Rectangle _worldBounds;
@@ -176,6 +176,41 @@ public sealed class FollowerBlock : IWorldProp
             _facing = leaderFacing;
         }
     }
+
+    /// <summary>
+    /// Applies scripted movement without breadcrumb following for authored cutscene beats.
+    /// </summary>
+    /// <param name="movementDelta">World-space movement delta in pixels for this frame.</param>
+    internal bool ApplyScriptedMovement(Vector2 movementDelta)
+    {
+        if (movementDelta == Vector2.Zero)
+        {
+            _isMoving = false;
+            return false;
+        }
+
+        _activeRestPosition = null;
+        _position = ClampPosition(_position + movementDelta);
+        _isMoving = true;
+        UpdateFacing(movementDelta);
+        return true;
+    }
+
+    /// <summary>
+    /// Clears transient movement state when control is driven by a non-standard sequence.
+    /// </summary>
+    internal void ClearMovementState()
+    {
+        _isMoving = false;
+    }
+
+    void IScriptControllableActor.SetPosition(Vector2 position) => SetPosition(position);
+
+    void IScriptControllableActor.SetFacing(FacingDirection facing) => SetFacing(facing);
+
+    bool IScriptControllableActor.ApplyScriptedMovement(Vector2 movementDelta) => ApplyScriptedMovement(movementDelta);
+
+    void IScriptControllableActor.ClearMovementState() => ClearMovementState();
 
     /// <summary>
     /// Draws the follower via a sprite animator.

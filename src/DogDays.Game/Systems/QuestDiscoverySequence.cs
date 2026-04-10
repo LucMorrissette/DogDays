@@ -142,6 +142,29 @@ internal sealed class QuestDiscoverySequence
     }
 
     /// <summary>
+    /// Returns whether the specified quest is currently visible or still queued for display.
+    /// </summary>
+    internal bool HasActiveOrPendingQuest(string questId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(questId);
+
+        if (IsActive && string.Equals(CurrentQuest?.Id, questId, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        foreach (var questDefinition in _pendingDefinitions)
+        {
+            if (string.Equals(questDefinition.Id, questId, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Advances the banner timer and consumes queued discoveries.
     /// </summary>
     /// <param name="gameTime">Current frame timing.</param>

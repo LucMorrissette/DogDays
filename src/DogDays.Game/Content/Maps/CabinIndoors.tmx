@@ -3,7 +3,7 @@
  <tileset firstgid="1" source="../Tilesets/CabinInterior.tsx"/>
  <tileset firstgid="15" source="../Tilesets/Props.tsx"/>
  <tileset firstgid="58" source="../Tilesets/CabinWallFrame.tsx"/>
- <layer id="1" name="Ground" width="10" height="7" locked="1">
+ <layer id="1" name="Ground" width="10" height="7">
   <data encoding="csv">
 9,9,9,9,9,9,9,9,9,9,
 10,10,10,10,10,10,10,10,10,10,
@@ -40,7 +40,7 @@
   </object>
  </objectgroup>
  <objectgroup id="3" name="SpawnPoints">
-  <object id="2" name="from-outdoors" x="219" y="201"/>
+  <object id="2" name="from-outdoors" x="219" y="199"/>
   <object id="3" name="default" x="163.664" y="89.6302"/>
   <object id="143" name="from-bedroom" x="214" y="69"/>
  </objectgroup>

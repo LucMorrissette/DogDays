@@ -4,6 +4,7 @@ using DogDays.Game.Core;
 using DogDays.Game.Data;
 using DogDays.Game.Data.Save;
 using DogDays.Game.Systems;
+using DogDays.Tests.Helpers;
 
 namespace DogDays.Tests.Unit;
 
@@ -71,8 +72,9 @@ public sealed class SaveGameMapperTests
         var facing = FacingDirection.Left;
         var zone = "Maps/StarterMap";
         var questManager = CreateQuestManagerWithDefinitions();
+        var progression = new PlayerProgressionState();
 
-        var data = SaveGameMapper.Capture(position, facing, zone, questManager, null, 0.5f, []);
+        var data = SaveGameMapper.Capture(position, facing, zone, questManager, progression, null, 0.5f, []);
 
         Assert.Equal(123.5f, data.Player.X);
         Assert.Equal(456.7f, data.Player.Y);
@@ -84,7 +86,8 @@ public sealed class SaveGameMapperTests
     public void Capture__CapturesVersion()
     {
         var questManager = CreateQuestManagerWithDefinitions();
-        var data = SaveGameMapper.Capture(Vector2.Zero, FacingDirection.Down, "Maps/StarterMap", questManager, null, 0f, []);
+        var progression = new PlayerProgressionState();
+        var data = SaveGameMapper.Capture(Vector2.Zero, FacingDirection.Down, "Maps/StarterMap", questManager, progression, null, 0f, []);
 
         Assert.Equal(SaveGameData.CurrentVersion, data.Version);
     }
@@ -93,7 +96,8 @@ public sealed class SaveGameMapperTests
     public void Capture__CapturesDayNightProgress()
     {
         var questManager = CreateQuestManagerWithDefinitions();
-        var data = SaveGameMapper.Capture(Vector2.Zero, FacingDirection.Down, "Maps/StarterMap", questManager, null, 0.75f, []);
+        var progression = new PlayerProgressionState();
+        var data = SaveGameMapper.Capture(Vector2.Zero, FacingDirection.Down, "Maps/StarterMap", questManager, progression, null, 0.75f, []);
 
         Assert.Equal(0.75f, data.DayNight.CycleProgress);
     }
@@ -102,12 +106,13 @@ public sealed class SaveGameMapperTests
     public void Capture__CapturesQuestState()
     {
         var questManager = CreateQuestManagerWithDefinitions();
+        var progression = new PlayerProgressionState();
         // quest_01 was auto-started, advance it with 2 kills
         var eventBus = new GameEventBus();
         questManager.GetQuest("quest_01")!
             .ApplyEvent(new GameEvent(GameEventType.EnemyKilled, null, 2));
 
-        var data = SaveGameMapper.Capture(Vector2.Zero, FacingDirection.Down, "Maps/StarterMap", questManager, null, 0f, []);
+        var data = SaveGameMapper.Capture(Vector2.Zero, FacingDirection.Down, "Maps/StarterMap", questManager, progression, null, 0f, []);
 
         Assert.Equal(2, data.Quests.Length);
 
@@ -126,6 +131,7 @@ public sealed class SaveGameMapperTests
     public void Capture__CapturesCombatStats()
     {
         var questManager = CreateQuestManagerWithDefinitions();
+        var progression = new PlayerProgressionState();
         var stats = new PlayerCombatStats
         {
             MaxHp = 8,
@@ -138,7 +144,7 @@ public sealed class SaveGameMapperTests
             ProjectileRangeMultiplier = 1.20f,
         };
 
-        var data = SaveGameMapper.Capture(Vector2.Zero, FacingDirection.Down, "Maps/WoodsBehindCabin", questManager, stats, 0f, []);
+        var data = SaveGameMapper.Capture(Vector2.Zero, FacingDirection.Down, "Maps/WoodsBehindCabin", questManager, progression, stats, 0f, []);
 
         Assert.Equal(8, data.CombatStats.MaxHp);
         Assert.Equal(3, data.CombatStats.Level);
@@ -154,7 +160,8 @@ public sealed class SaveGameMapperTests
     public void Capture__CapturesDefaultsWhenCombatStatsNull()
     {
         var questManager = CreateQuestManagerWithDefinitions();
-        var data = SaveGameMapper.Capture(Vector2.Zero, FacingDirection.Down, "Maps/StarterMap", questManager, null, 0f, []);
+        var progression = new PlayerProgressionState();
+        var data = SaveGameMapper.Capture(Vector2.Zero, FacingDirection.Down, "Maps/StarterMap", questManager, progression, null, 0f, []);
 
         Assert.Equal(5, data.CombatStats.MaxHp);
         Assert.Equal(1, data.CombatStats.Level);
@@ -164,6 +171,7 @@ public sealed class SaveGameMapperTests
     public void Capture__CapturesWatercraftStates()
     {
         var questManager = CreateQuestManagerWithDefinitions();
+        var progression = new PlayerProgressionState();
         var watercraftStates = new[]
         {
             new SaveWatercraftData
@@ -178,12 +186,26 @@ public sealed class SaveGameMapperTests
             },
         };
 
-        var data = SaveGameMapper.Capture(Vector2.Zero, FacingDirection.Down, "Maps/StarterMap", questManager, null, 0f, watercraftStates);
+        var data = SaveGameMapper.Capture(Vector2.Zero, FacingDirection.Down, "Maps/StarterMap", questManager, progression, null, 0f, watercraftStates);
 
         Assert.Single(data.Watercraft);
         Assert.Equal("Maps/StarterMap", data.Watercraft[0].MapAssetName);
         Assert.Equal(FacingDirection.Right, data.Watercraft[0].Facing);
         Assert.True(data.Watercraft[0].IsOccupied);
+    }
+
+    [Fact]
+    public void Capture__CapturesProgressionUnlocks()
+    {
+        var questManager = CreateQuestManagerWithDefinitions();
+        var progression = new PlayerProgressionState
+        {
+            HasForestStarterWeapons = true,
+        };
+
+        var data = SaveGameMapper.Capture(Vector2.Zero, FacingDirection.Down, "Maps/StarterMap", questManager, progression, null, 0f, []);
+
+        Assert.True(data.Progression.HasForestStarterWeapons);
     }
 
     [Fact]
@@ -281,16 +303,36 @@ public sealed class SaveGameMapperTests
     }
 
     [Fact]
+    public void RestoreProgression__RestoresUnlockFlags()
+    {
+        var eventBus = new GameEventBus();
+        var quests = CreateQuestManagerWithDefinitions();
+        var services = new GameSessionServices(eventBus, quests, new FakeSaveGameService());
+        var savedData = new SaveGameData
+        {
+            Progression = new SavePlayerProgressionData
+            {
+                HasForestStarterWeapons = true,
+            },
+        };
+
+        SaveGameMapper.RestoreProgression(savedData, services);
+
+        Assert.True(services.Progression.HasForestStarterWeapons);
+    }
+
+    [Fact]
     public void CaptureAndRestore__RoundTrip__QuestsPreserved()
     {
         var eventBus = new GameEventBus();
         var originalManager = CreateQuestManagerWithDefinitions();
+        var progression = new PlayerProgressionState();
         // Advance quest_01: kill 2 gnomes.
         originalManager.GetQuest("quest_01")!
             .ApplyEvent(new GameEvent(GameEventType.EnemyKilled, null, 2));
 
         var data = SaveGameMapper.Capture(
-            new Vector2(100f, 200f), FacingDirection.Up, "Maps/StarterMap", originalManager, null, 0.5f, []);
+            new Vector2(100f, 200f), FacingDirection.Up, "Maps/StarterMap", originalManager, progression, null, 0.5f, []);
 
         // Create a fresh quest manager and restore into it.
         var restoredManager = CreateQuestManagerWithDefinitions();
@@ -307,12 +349,13 @@ public sealed class SaveGameMapperTests
     public void CaptureAndRestore__RoundTrip__CombatStatsPreserved()
     {
         var questManager = CreateQuestManagerWithDefinitions();
+        var progression = new PlayerProgressionState();
         var originalStats = new PlayerCombatStats();
         originalStats.ApplyLevelUp();
         originalStats.ApplyLevelUp();
 
         var data = SaveGameMapper.Capture(
-            Vector2.Zero, FacingDirection.Down, "Maps/WoodsBehindCabin", questManager, originalStats, 0f, []);
+            Vector2.Zero, FacingDirection.Down, "Maps/WoodsBehindCabin", questManager, progression, originalStats, 0f, []);
 
         var restoredStats = new PlayerCombatStats();
         SaveGameMapper.RestoreCombatStats(data, restoredStats);
@@ -325,5 +368,29 @@ public sealed class SaveGameMapperTests
         Assert.Equal(originalStats.CooldownMultiplier, restoredStats.CooldownMultiplier);
         Assert.Equal(originalStats.ProjectileSpeedMultiplier, restoredStats.ProjectileSpeedMultiplier);
         Assert.Equal(originalStats.ProjectileRangeMultiplier, restoredStats.ProjectileRangeMultiplier);
+    }
+
+    [Fact]
+    public void CaptureAndRestore__RoundTrip__ProgressionPreserved()
+    {
+        var eventBus = new GameEventBus();
+        var questManager = CreateQuestManagerWithDefinitions();
+        var services = new GameSessionServices(eventBus, questManager, new FakeSaveGameService());
+        services.Progression.HasForestStarterWeapons = true;
+
+        var data = SaveGameMapper.Capture(
+            Vector2.Zero,
+            FacingDirection.Down,
+            "Maps/WoodsBehindCabin",
+            questManager,
+            services.Progression,
+            null,
+            0f,
+            []);
+
+        services.Progression.Reset();
+        SaveGameMapper.RestoreProgression(data, services);
+
+        Assert.True(services.Progression.HasForestStarterWeapons);
     }
 }

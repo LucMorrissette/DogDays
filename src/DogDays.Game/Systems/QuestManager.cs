@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using DogDays.Game.Core;
 using DogDays.Game.Data;
 
@@ -16,6 +17,7 @@ internal sealed class QuestManager
     private readonly Dictionary<string, QuestState> _questStatesById = new(StringComparer.Ordinal);
     private readonly List<QuestState> _questStatesInLoadOrder = new();
     private readonly List<QuestState> _activeQuests = new();
+    private readonly QuestNpcDialogRegistry _npcDialogRegistry = new();
     private QuestState? _trackedQuest;
 
     /// <summary>
@@ -55,6 +57,29 @@ internal sealed class QuestManager
 
     /// <summary>The quest currently selected for HUD tracking.</summary>
     internal QuestState? TrackedQuest => _trackedQuest;
+
+    /// <summary>The currently active main-story quest, if any.</summary>
+    internal QuestState? MainQuest
+    {
+        get
+        {
+            if (_trackedQuest?.Status == QuestStatus.Active && _trackedQuest.Definition.IsMainQuest)
+            {
+                return _trackedQuest;
+            }
+
+            for (var i = 0; i < _questStatesInLoadOrder.Count; i++)
+            {
+                var questState = _questStatesInLoadOrder[i];
+                if (questState.Status == QuestStatus.Active && questState.Definition.IsMainQuest)
+                {
+                    return questState;
+                }
+            }
+
+            return null;
+        }
+    }
 
     /// <summary>Fired when the tracked quest changes.</summary>
     internal event Action<QuestState?>? TrackedQuestChanged;
@@ -98,12 +123,16 @@ internal sealed class QuestManager
             throw new InvalidOperationException("Quest definitions have already been loaded for this session.");
         }
 
-        foreach (var definition in definitions)
+        var definitionArray = definitions as QuestDefinition[] ?? definitions.ToArray();
+
+        foreach (var definition in definitionArray)
         {
             var questState = new QuestState(definition);
             _questStatesById.Add(definition.Id, questState);
             _questStatesInLoadOrder.Add(questState);
         }
+
+        _npcDialogRegistry.LoadDefinitions(definitionArray);
 
         IsInitialized = true;
 
@@ -176,6 +205,37 @@ internal sealed class QuestManager
         }
 
         return SetTrackedQuestInternal(questState);
+    }
+
+    /// <summary>
+    /// Resolves an authored NPC dialog override for the currently active main quest.
+    /// </summary>
+    internal DialogScript? ResolveMainQuestNpcDialog(string npcId)
+    {
+        return _npcDialogRegistry.Resolve(MainQuest?.Definition.Id, npcId);
+    }
+
+    /// <summary>
+    /// Clears all quest runtime progress and restarts auto-start quests.
+    /// </summary>
+    internal void ResetProgress()
+    {
+        _activeQuests.Clear();
+        _availableQuests.Clear();
+        _trackedQuest = null;
+
+        for (var i = 0; i < _questStatesInLoadOrder.Count; i++)
+        {
+            _questStatesInLoadOrder[i].ResetProgress();
+        }
+
+        for (var i = 0; i < _questStatesInLoadOrder.Count; i++)
+        {
+            if (_questStatesInLoadOrder[i].Definition.AutoStart)
+            {
+                StartQuest(_questStatesInLoadOrder[i].Definition.Id);
+            }
+        }
     }
 
     private void HandleGameEvent(GameEvent gameEvent)

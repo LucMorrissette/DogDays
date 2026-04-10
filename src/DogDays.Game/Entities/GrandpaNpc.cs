@@ -15,7 +15,7 @@ namespace DogDays.Game.Entities;
 /// Delegates route selection and progress tracking to an <see cref="IndoorNavigator"/>
 /// component, and handles movement, collision, and rendering locally.
 /// </summary>
-public sealed class GrandpaNpc : IWorldProp, IDialogSpeaker
+public sealed class GrandpaNpc : IWorldProp, IDialogSpeaker, IScriptControllableNpc
 {
     private const float MoveSpeedPixelsPerSecond = 22f;
 
@@ -45,6 +45,7 @@ public sealed class GrandpaNpc : IWorldProp, IDialogSpeaker
     private Vector2 _position;
     private FacingDirection _facing = FacingDirection.Down;
     private bool _isMoving;
+    private bool _autonomousBehaviorEnabled = true;
 
     /// <summary>
     /// Creates a Grandpa NPC that patrols using the supplied navigation graph.
@@ -83,6 +84,72 @@ public sealed class GrandpaNpc : IWorldProp, IDialogSpeaker
 
     /// <summary>Whether the NPC moved this frame.</summary>
     public bool IsMoving => _isMoving;
+    
+    Vector2 IScriptControllableNpc.NavigationPosition => _position + _footCenterOffset;
+
+    void IScriptControllableNpc.SetAutonomousBehaviorEnabled(bool isEnabled)
+    {
+        if (_autonomousBehaviorEnabled == isEnabled)
+        {
+            return;
+        }
+
+        _autonomousBehaviorEnabled = isEnabled;
+        _isMoving = false;
+
+        if (isEnabled)
+        {
+            _navigator.ResetFrom(_position + _footCenterOffset);
+        }
+    }
+
+    void IScriptControllableActor.SetPosition(Vector2 position)
+    {
+        _position = position;
+        _isMoving = false;
+    }
+
+    void IScriptControllableActor.SetFacing(FacingDirection facing)
+    {
+        _facing = facing;
+    }
+
+    bool IScriptControllableActor.ApplyScriptedMovement(Vector2 movementDelta) =>
+        ApplyScriptedMovementInternal(movementDelta, collisionData: null);
+
+    bool IScriptControllableNpc.ApplyScriptedMovement(Vector2 movementDelta, IMapCollisionData? collisionData) =>
+        ApplyScriptedMovementInternal(movementDelta, collisionData);
+
+    private bool ApplyScriptedMovementInternal(Vector2 movementDelta, IMapCollisionData? collisionData)
+    {
+        if (movementDelta == Vector2.Zero)
+        {
+            _isMoving = false;
+            return false;
+        }
+
+        UpdateFacing(movementDelta);
+
+        var moved = false;
+
+        if (movementDelta.X != 0f)
+        {
+            moved |= TryMoveOnAxis(new Vector2(movementDelta.X, 0f), collisionData);
+        }
+
+        if (movementDelta.Y != 0f)
+        {
+            moved |= TryMoveOnAxis(new Vector2(0f, movementDelta.Y), collisionData);
+        }
+
+        _isMoving = moved;
+        return moved;
+    }
+
+    void IScriptControllableActor.ClearMovementState()
+    {
+        _isMoving = false;
+    }
 
     /// <summary>Current AABB in world-space pixels.</summary>
     public Rectangle Bounds => new(
@@ -100,6 +167,12 @@ public sealed class GrandpaNpc : IWorldProp, IDialogSpeaker
     /// </summary>
     public void Update(GameTime gameTime, IMapCollisionData? collisionData = null)
     {
+        if (!_autonomousBehaviorEnabled)
+        {
+            _isMoving = false;
+            return;
+        }
+
         var elapsed = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
         var footCenter = _position + _footCenterOffset;

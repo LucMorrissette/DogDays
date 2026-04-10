@@ -136,6 +136,17 @@ public sealed class IndoorNavigator
     }
 
     /// <summary>
+    /// Clears the current route state and picks a fresh destination from the supplied position.
+    /// </summary>
+    /// <param name="currentPosition">The entity's current world position.</param>
+    public void ResetFrom(Vector2 currentPosition)
+    {
+        _pauseTimer = 0f;
+        _stuckTimer = 0f;
+        PickNewDestination(currentPosition);
+    }
+
+    /// <summary>
     /// Picks a random destination node and computes a route from the nearest node.
     /// </summary>
     private void PickNewDestination(Vector2 currentPosition)

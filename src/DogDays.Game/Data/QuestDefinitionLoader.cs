@@ -11,6 +11,8 @@ namespace DogDays.Game.Data;
 /// </summary>
 internal static class QuestDefinitionLoader
 {
+    private const string GrandpaNpcId = "grandpa";
+
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         AllowTrailingCommas = true,
@@ -83,6 +85,8 @@ internal static class QuestDefinitionLoader
                 ValidateCondition(quest.StartCondition, $"Quest '{quest.Id}' start condition");
             }
 
+            ValidateNpcDialogs(quest, filePath);
+
             var objectiveIds = new HashSet<string>(StringComparer.Ordinal);
             for (var objectiveIndex = 0; objectiveIndex < quest.Objectives.Length; objectiveIndex++)
             {
@@ -109,6 +113,52 @@ internal static class QuestDefinitionLoader
 
                 ValidateCondition(objective.Completion, $"Quest '{quest.Id}' objective '{objective.Id}'");
             }
+        }
+    }
+
+    private static void ValidateNpcDialogs(QuestDefinition quest, string filePath)
+    {
+        if (quest.NpcDialogs is null)
+        {
+            throw new InvalidDataException($"Quest '{quest.Id}' in '{filePath}' cannot use a null npcDialogs array.");
+        }
+
+        var npcIds = new HashSet<string>(StringComparer.Ordinal);
+        for (var dialogIndex = 0; dialogIndex < quest.NpcDialogs.Length; dialogIndex++)
+        {
+            var npcDialog = quest.NpcDialogs[dialogIndex];
+            if (npcDialog is null)
+            {
+                throw new InvalidDataException($"Quest '{quest.Id}' has a null npc dialog at index {dialogIndex}.");
+            }
+
+            if (string.IsNullOrWhiteSpace(npcDialog.NpcId))
+            {
+                throw new InvalidDataException($"Quest '{quest.Id}' npc dialog {dialogIndex} is missing an npcId.");
+            }
+
+            if (!npcIds.Add(npcDialog.NpcId))
+            {
+                throw new InvalidDataException($"Quest '{quest.Id}' has duplicate npc dialog id '{npcDialog.NpcId}'.");
+            }
+
+            if (npcDialog.Lines is null || npcDialog.Lines.Length == 0)
+            {
+                throw new InvalidDataException($"Quest '{quest.Id}' npc dialog '{npcDialog.NpcId}' must declare at least one line.");
+            }
+
+            for (var lineIndex = 0; lineIndex < npcDialog.Lines.Length; lineIndex++)
+            {
+                if (string.IsNullOrWhiteSpace(npcDialog.Lines[lineIndex].Text))
+                {
+                    throw new InvalidDataException($"Quest '{quest.Id}' npc dialog '{npcDialog.NpcId}' line {lineIndex} is missing text.");
+                }
+            }
+        }
+
+        if (quest.IsMainQuest && !npcIds.Contains(GrandpaNpcId))
+        {
+            throw new InvalidDataException($"Main quest '{quest.Id}' in '{filePath}' must include an npc dialog for '{GrandpaNpcId}'.");
         }
     }
 

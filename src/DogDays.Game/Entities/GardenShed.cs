@@ -22,6 +22,8 @@ public sealed class GardenShed : IWorldProp
     private readonly int _collisionHeightPixels;
     private readonly int _collisionYOffset;
     private readonly Rectangle _rampBounds;
+    private bool _wasActorOnRamp;
+    private bool _lockedFeedbackPending;
 
     /// <summary>
     /// Creates a logic-only garden shed at a world position.
@@ -29,6 +31,7 @@ public sealed class GardenShed : IWorldProp
     /// <param name="position">Top-left world position in pixels.</param>
     /// <param name="size">Shed draw size in pixels.</param>
     /// <param name="startOpen">Whether the shed door starts open.</param>
+    /// <param name="isLocked">When true the shed stays shut and emits locked feedback instead of opening.</param>
     /// <param name="collisionHeightPixels">Collision height in pixels measured from the bottom of the shed.</param>
     /// <param name="collisionYOffset">Pixel offset applied to the collision bounds Y position.</param>
     /// <param name="suppressOcclusion">When true, the reveal lens will not activate behind this prop.</param>
@@ -36,6 +39,7 @@ public sealed class GardenShed : IWorldProp
         Vector2 position,
         Point size,
         bool startOpen = false,
+        bool isLocked = false,
         int collisionHeightPixels = 0,
         int collisionYOffset = 0,
         bool suppressOcclusion = false)
@@ -44,6 +48,7 @@ public sealed class GardenShed : IWorldProp
             size,
             ScaleRampLocalBounds(size),
             startOpen,
+            isLocked,
             collisionHeightPixels,
             collisionYOffset,
             suppressOcclusion)
@@ -57,6 +62,7 @@ public sealed class GardenShed : IWorldProp
     /// <param name="size">Shed draw size in pixels.</param>
     /// <param name="rampLocalBounds">Ramp bounds relative to the shed top-left origin.</param>
     /// <param name="startOpen">Whether the shed door starts open.</param>
+    /// <param name="isLocked">When true the shed stays shut and emits locked feedback instead of opening.</param>
     /// <param name="collisionHeightPixels">Collision height in pixels measured from the bottom of the shed.</param>
     /// <param name="collisionYOffset">Pixel offset applied to the collision bounds Y position.</param>
     /// <param name="suppressOcclusion">When true, the reveal lens will not activate behind this prop.</param>
@@ -65,6 +71,7 @@ public sealed class GardenShed : IWorldProp
         Point size,
         Rectangle rampLocalBounds,
         bool startOpen = false,
+        bool isLocked = false,
         int collisionHeightPixels = 0,
         int collisionYOffset = 0,
         bool suppressOcclusion = false)
@@ -84,7 +91,8 @@ public sealed class GardenShed : IWorldProp
         var clampedRampLocalBounds = ClampLocalBounds(rampLocalBounds, size);
         _rampBounds = ToWorldBounds(position, clampedRampLocalBounds);
 
-        IsDoorOpen = startOpen;
+        IsLocked = isLocked;
+        IsDoorOpen = startOpen && !isLocked;
         SuppressOcclusion = suppressOcclusion;
     }
 
@@ -95,6 +103,7 @@ public sealed class GardenShed : IWorldProp
     /// <param name="closedTexture">Closed-door shed texture used for drawing.</param>
     /// <param name="openTexture">Open-door shed texture used for drawing.</param>
     /// <param name="startOpen">Whether the shed door starts open.</param>
+    /// <param name="isLocked">When true the shed stays shut and emits locked feedback instead of opening.</param>
     /// <param name="collisionHeightPixels">Collision height in source-texture pixels measured from the bottom of the shed.</param>
     /// <param name="scale">Uniform draw scale applied to both textures and bounds.</param>
     /// <param name="collisionYOffset">Pixel offset applied to collision Y in source-texture pixels.</param>
@@ -104,6 +113,7 @@ public sealed class GardenShed : IWorldProp
         Texture2D closedTexture,
         Texture2D openTexture,
         bool startOpen = false,
+        bool isLocked = false,
         int collisionHeightPixels = 0,
         float scale = 1f,
         int collisionYOffset = 0,
@@ -139,7 +149,8 @@ public sealed class GardenShed : IWorldProp
         var rampLocalBounds = ScaleRampLocalBounds(_size);
         _rampBounds = ToWorldBounds(position, rampLocalBounds);
 
-        IsDoorOpen = startOpen;
+        IsLocked = isLocked;
+        IsDoorOpen = startOpen && !isLocked;
         SuppressOcclusion = suppressOcclusion;
     }
 
@@ -148,6 +159,9 @@ public sealed class GardenShed : IWorldProp
 
     /// <summary>When true this instance uses the open-door shed sprite.</summary>
     public bool IsDoorOpen { get; private set; }
+
+    /// <summary>When true the shed remains shut until gameplay unlocks it.</summary>
+    public bool IsLocked { get; private set; }
 
     /// <summary>When true, the reveal lens will not activate when a character walks behind this shed.</summary>
     public bool SuppressOcclusion { get; }
@@ -163,6 +177,19 @@ public sealed class GardenShed : IWorldProp
         _collisionHeightPixels);
 
     /// <summary>
+    /// Updates the shed lock state and closes the door immediately when re-locked.
+    /// </summary>
+    /// <param name="isLocked">True to keep the shed locked shut.</param>
+    public void SetLocked(bool isLocked)
+    {
+        IsLocked = isLocked;
+        if (isLocked)
+        {
+            IsDoorOpen = false;
+        }
+    }
+
+    /// <summary>
     /// Updates the door state from the provided actor foot bounds.
     /// </summary>
     /// <param name="actorFootBounds">Actor foot bounds in world space.</param>
@@ -171,10 +198,39 @@ public sealed class GardenShed : IWorldProp
         if (actorFootBounds.Width <= 0 || actorFootBounds.Height <= 0)
         {
             IsDoorOpen = false;
+            _wasActorOnRamp = false;
             return;
         }
 
-        IsDoorOpen = actorFootBounds.Intersects(_rampBounds);
+        var actorOnRamp = actorFootBounds.Intersects(_rampBounds);
+        if (IsLocked)
+        {
+            if (actorOnRamp && !_wasActorOnRamp)
+            {
+                _lockedFeedbackPending = true;
+            }
+
+            _wasActorOnRamp = actorOnRamp;
+            IsDoorOpen = false;
+            return;
+        }
+
+        _wasActorOnRamp = actorOnRamp;
+        IsDoorOpen = actorOnRamp;
+    }
+
+    /// <summary>
+    /// Returns whether a locked shed sound cue should be played, consuming the pending request.
+    /// </summary>
+    public bool ConsumeLockedFeedbackRequest()
+    {
+        if (!_lockedFeedbackPending)
+        {
+            return false;
+        }
+
+        _lockedFeedbackPending = false;
+        return true;
     }
 
     /// <summary>

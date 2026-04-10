@@ -238,6 +238,8 @@ internal sealed class TitleScreen : IGameScreen
 
     private void StartNewGame()
     {
+        _gameSessionServices.ResetSessionState();
+
         _screenManager.Replace(new GameplayScreen(
             _graphicsDevice,
             _content,
@@ -246,7 +248,7 @@ internal sealed class TitleScreen : IGameScreen
             _screenManager,
             _gameSessionServices,
             _requestExit,
-            "Maps/CabinIndoors",
+            "Maps/CabinBedroom",
             "default"));
     }
 
@@ -272,10 +274,13 @@ internal sealed class TitleScreen : IGameScreen
         }
 
         _gameSessionServices.LastUsedSaveSlot = loadedSlot;
+        _gameSessionServices.ResetSessionState();
+        _gameSessionServices.LastUsedSaveSlot = loadedSlot;
 
         // Restore quest state before rebuilding the screen.
         SaveGameMapper.RestoreQuests(data, _gameSessionServices.Quests);
         _gameSessionServices.Quests.RebuildListsFromRestoredState();
+        SaveGameMapper.RestoreProgression(data, _gameSessionServices);
 
         var savedPlayer = data.Player;
         var savedPosition = new Vector2(savedPlayer.X, savedPlayer.Y);

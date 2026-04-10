@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DogDays.Game.Data;
 using DogDays.Game.Systems;
 
 namespace DogDays.Game.Core;
@@ -31,9 +32,23 @@ internal sealed class GameSessionServices
     /// <summary>Save game persistence service.</summary>
     internal ISaveGameService SaveGame { get; }
 
+    /// <summary>Session-scoped player progression unlocks that survive screen replacement.</summary>
+    internal PlayerProgressionState Progression { get; } = new();
+
     /// <summary>Per-map mutable watercraft state that survives screen replacement.</summary>
     internal Dictionary<string, Data.Save.SaveWatercraftData[]> WatercraftStatesByMap { get; } = new(StringComparer.Ordinal);
 
     /// <summary>Zero-based slot index used for the most recent manual save. Defaults to slot 1.</summary>
     internal int LastUsedSaveSlot { get; set; } = 1;
+
+    /// <summary>
+    /// Clears per-session runtime state before starting a fresh new game or loading a save.
+    /// </summary>
+    internal void ResetSessionState()
+    {
+        Quests.ResetProgress();
+        Progression.Reset();
+        WatercraftStatesByMap.Clear();
+        LastUsedSaveSlot = 1;
+    }
 }

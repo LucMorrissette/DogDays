@@ -92,6 +92,28 @@ public sealed class QuestDiscoverySequenceTests
         Assert.Equal(0f, sequence.Opacity);
     }
 
+    [Fact]
+    public void HasActiveOrPendingQuest__WhenQuestIsCurrentOrQueued__ReturnsTrue()
+    {
+        var sequence = new QuestDiscoverySequence();
+        sequence.Enqueue(CreateQuest("quest-a", "Quest A", "Objective A."));
+        sequence.Enqueue(CreateQuest("quest-b", "Quest B", "Objective B."));
+
+        Assert.True(sequence.HasActiveOrPendingQuest("quest-a"));
+        Assert.True(sequence.HasActiveOrPendingQuest("quest-b"));
+    }
+
+    [Fact]
+    public void HasActiveOrPendingQuest__AfterQuestBannerDrains__ReturnsFalse()
+    {
+        var sequence = new QuestDiscoverySequence();
+        sequence.Enqueue(CreateQuest("quest-a", "Quest A", "Objective A."));
+
+        sequence.Update(FakeGameTime.FromSeconds(QuestDiscoverySequence.TotalDurationSeconds + 0.01f));
+
+        Assert.False(sequence.HasActiveOrPendingQuest("quest-a"));
+    }
+
     private static QuestDefinition CreateQuest(string id, string title, string objectiveText)
     {
         return new QuestDefinition

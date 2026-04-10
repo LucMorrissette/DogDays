@@ -82,6 +82,19 @@ Indoor maps can optionally include authored navigation data for NPC pathfinding 
 - Links are **bidirectional** — each link creates edges in both directions.
 - Explicitly authored links prevent hidden routing through walls.
 
+### Scripted Route Authoring
+
+For room-scale story beats, treat nav data as both patrol data and scripted-route data.
+
+- Add stable `NavNode` names for sequence destinations such as `entry`, `center`, `hearth`, or other conversation staging spots.
+- Keep those names stable once sequence code references them.
+- Place intermediate nodes around couches, tables, counters, and narrow door frames so A* produces the path a player would expect to see.
+- Prefer one or two extra corner nodes over relying on collision sliding to shape the final path.
+- Do not place nodes inside furniture footprints or so close to obstacles that the NPC foot bounds must scrape them.
+- If a route should clearly approach from one side of the room, author links that make that approach explicit instead of leaving multiple equally good paths.
+
+The goal is not just reachability. The goal is readable, human-looking movement for both ambient patrols and scripted sequences.
+
 Maps without nav data work unchanged — `TiledWorldRenderer.NavGraph` is `null` in that case.
 
 ### Adding a new solid prop type

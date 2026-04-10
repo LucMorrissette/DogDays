@@ -408,6 +408,7 @@ internal static class PropFactory
         Texture2D closedTexture,
         Texture2D openTexture,
         IReadOnlyList<TiledWorldRenderer.MapPropPlacement> placements,
+        bool isLocked = false,
         int collisionHeightPixels = 0,
         int targetWidthPixels = 0,
         int collisionYOffset = 0)
@@ -431,6 +432,7 @@ internal static class PropFactory
                 placement.Position,
                 closedTexture,
                 openTexture,
+                isLocked: isLocked,
                 collisionHeightPixels: collisionHeightPixels,
                 scale: scale,
                 collisionYOffset: collisionYOffset,

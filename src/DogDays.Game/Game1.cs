@@ -8,7 +8,7 @@ using DogDays.Game.Data.Save;
 using DogDays.Game.Input;
 using DogDays.Game.Screens;
 using DogDays.Game.Systems;
-#if WINDOWS
+#if WINDOWS_DESKTOP
 using System.Threading;
 using Clipboard = System.Windows.Forms.Clipboard;
 using DrawingBitmap = System.Drawing.Bitmap;
@@ -39,7 +39,7 @@ public class Game1 : Microsoft.Xna.Framework.Game
     private static readonly Color CrtBorderColor = new(30, 30, 40);
     private Effect _crtEffect;
     private bool _crtEnabled = true;
-#if WINDOWS
+#if WINDOWS_DESKTOP
     private Color[] _screenshotBuffer;
 #endif
 
@@ -172,7 +172,7 @@ public class Game1 : Microsoft.Xna.Framework.Game
 
     private void CopySceneRenderTargetToClipboard()
     {
-#if WINDOWS
+#if WINDOWS_DESKTOP
         if (_sceneRenderTarget is null)
         {
             return;

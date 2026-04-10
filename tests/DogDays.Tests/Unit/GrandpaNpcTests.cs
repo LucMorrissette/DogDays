@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework;
 using DogDays.Game.Data;
 using DogDays.Game.Entities;
 using DogDays.Game.World;
+using DogDays.Tests.Helpers;
 using Xunit;
 
 namespace DogDays.Tests.Unit;
@@ -39,5 +40,20 @@ public class GrandpaNpcTests
         grandpa.FaceToward(new Vector2(116f, 60f));
 
         Assert.Equal(FacingDirection.Up, grandpa.Facing);
+    }
+
+    [Fact]
+    public void Update__DoesNotMoveWhileAutonomyDisabled()
+    {
+        var grandpa = new GrandpaNpc(new Vector2(100f, 100f), FrameSize, SquareGraph(), random: new Random(42));
+        var scriptedNpc = (IScriptControllableNpc)grandpa;
+
+        scriptedNpc.HoldForScriptedSequence(new Vector2(210f, 108f), FacingDirection.Left);
+
+        grandpa.Update(FakeGameTime.FromSeconds(1f));
+
+        Assert.Equal(new Vector2(210f, 108f), grandpa.Position);
+        Assert.Equal(FacingDirection.Left, grandpa.Facing);
+        Assert.False(grandpa.IsMoving);
     }
 }

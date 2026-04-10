@@ -9,6 +9,7 @@
 | **Testability strategy** | Decouple logic from GPU via interfaces | All game logic testable without a GraphicsDevice. |
 | **Test tiers** | Unit + Integration | Unit for single-class isolation; Integration for multi-system frame simulation. |
 | **Key testing interfaces** | `IInputManager`, `IMapCollisionData`, `IAudioManager` | Hardware dependencies sit behind interfaces for fake substitution. |
+| **Scripted sequence coverage** | Unit-test phase changes, actor positions/facing, pending outputs, and route-following beats; add integration tests for multi-map handoffs | Authored sequences are brittle and need direct coverage once they coordinate dialog, actor control, routing, and screen replacement. |
 
 ## Test Helpers Catalog
 
@@ -46,6 +47,15 @@
 | `Unit/FrontDoorTests.cs` | Authored initial state, auto-open only at very close range for the player, confirm follower proximity alone does not open the door, auto-close when the player is not nearby, and verify locked doors stay shut while edge-triggering their feedback cue on blocked approach. |
 | `Unit/GardenShedTests.cs` | Authored initial state, opens only when player foot bounds are on the ramp footprint, and closes when the player steps off the ramp. |
 | `Unit/GardenGnomeTests.cs` | Hides quickly when the player enters the reduced proximity radius, reappears slowly once the player leaves, and stays at home when the player remains outside that range. |
+| `Unit/MomNpcTests.cs` | Patrol startup, facing, pause/resume behavior, and scripted-control contract coverage for a patrolling indoor NPC. |
+| `Unit/GrandpaNpcTests.cs` | Facing and scripted-control contract coverage for a patrolling outdoor NPC. |
+| `Unit/MissingGnomeDefinitionTests.cs` | Cottage-exit trigger gating rules for starting the missing-gnome warning beat exactly once before the quest begins. |
+| `Unit/MissingGnomeSequenceTests.cs` | Mom-approach, dialog queueing, and completion signaling for the cottage-exit missing-gnome sequence. |
+| `Unit/QuestDefinitionLoaderTests.cs` | Quest JSON parsing plus validation of main-quest NPC dialog authoring rules, duplicate quest ids, and invalid required counts. |
+| `Unit/QuestManagerTests.cs` | Quest start/advance behavior, tracked-quest switching, active main-quest resolution, and main-quest NPC dialog lookup. |
+| `Unit/ScriptedNpcRouteTests.cs` | A*-backed scripted patrol-NPC route following through intermediate nav nodes instead of direct-room cutting. |
+| `Unit/ScriptedActorMotionTests.cs` | Zero-delta and arrival behavior for the shared scripted actor movement helper. |
+| `Unit/ScriptedPositionResolverTests.cs` | Spawn-point anchor resolution, fallback placement, and pose application for the declarative scripted-position layer. |
 | `Unit/DashRollSequenceTests.cs` | Dash start rules, facing lock, immediate invulnerability, frame progression, cooldown timing, and blocked-start cancellation. |
 | `Unit/PlayerCollapseSequenceTests.cs` | Collapse start state, player lock-in during the sequence, transform squash/rotation progression, and completion timing. |
 | `Integration/DashRollSequenceIntegrationTests.cs` | Multi-frame dash movement halts before world obstacles and exits the roll cleanly after collision. |

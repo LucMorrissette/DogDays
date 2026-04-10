@@ -1,67 +1,70 @@
 [
   {
-    "id": "meet-grandpa",
-    "title": "Find Grandpa",
-    "description": "Check in with Grandpa outside the cabin.",
+    "id": "first-day-of-summer",
+    "title": "First Day of Summer",
+    "description": "Mom wants to talk before the day gets started.",
     "autoStart": true,
+    "isMainQuest": true,
+    "npcDialogs": [
+      {
+        "npcId": "grandpa",
+        "lines": [
+          {
+            "speakerName": "Grandpa",
+            "text": "Your mom's been calling for you since breakfast."
+          },
+          {
+            "speakerName": "Grandpa",
+            "text": "Best go talk to her before the first day of summer slips past you."
+          }
+        ]
+      }
+    ],
     "objectives": [
       {
-        "id": "talk-to-grandpa",
-        "description": "Talk to Grandpa.",
+        "id": "go-talk-to-mom",
+        "description": "Go talk to Mom.",
         "completion": {
-          "eventType": "NpcTalkedTo",
-          "targetId": "grandpa",
+          "eventType": "StoryBeatReached",
+          "targetId": "summer_intro_complete",
           "requiredCount": 1
         }
       }
     ]
   },
   {
-    "id": "moms-warning",
-    "title": "Mom's Warning",
-    "description": "Hear Mom out, then make sure Grandpa knows you're heading into the woods.",
+    "id": "search-for-gnome-chompsky",
+    "title": "Search for Gnome Chompsky",
+    "description": "Mom needs help finding the missing garden gnome and the shed key hidden inside it.",
+    "isMainQuest": true,
     "startCondition": {
-      "eventType": "NpcTalkedTo",
-      "targetId": "mom",
+      "eventType": "StoryBeatReached",
+      "targetId": "missing_gnome_warning",
       "requiredCount": 1
     },
+    "npcDialogs": [
+      {
+        "npcId": "grandpa",
+        "lines": [
+          {
+            "speakerName": "Grandpa",
+            "text": "I'm glad some one took that gaudy gnome."
+          },
+          {
+            "speakerName": "Grandpa",
+            "text": "I heard some strange rustling sounds coming from the woods behind the shed."
+          }
+        ]
+      }
+    ],
     "objectives": [
       {
-        "id": "talk-to-grandpa-again",
-        "description": "Tell Grandpa you're heading out.",
-        "completion": {
-          "eventType": "NpcTalkedTo",
-          "targetId": "grandpa",
-          "requiredCount": 1
-        }
-      },
-      {
-        "id": "reach-the-woods",
-        "description": "Enter the woods behind the cabin.",
+        "id": "search-for-the-missing-gnome",
+        "description": "Search for the missing gnome",
         "completion": {
           "eventType": "ZoneEntered",
           "targetId": "Maps/WoodsBehindCabin",
           "requiredCount": 1
-        }
-      }
-    ]
-  },
-  {
-    "id": "clear-the-path",
-    "title": "Clear the Path",
-    "description": "Thin out the gnomes waiting in the woods.",
-    "startCondition": {
-      "eventType": "ZoneEntered",
-      "targetId": "Maps/WoodsBehindCabin",
-      "requiredCount": 1
-    },
-    "objectives": [
-      {
-        "id": "defeat-three-gnomes",
-        "description": "Defeat 3 gnomes.",
-        "completion": {
-          "eventType": "EnemyKilled",
-          "requiredCount": 3
         }
       }
     ]

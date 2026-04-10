@@ -4,7 +4,7 @@
 |---|---|---|
 | **Save abstraction** | `ISaveGameService` interface | Decoupled from file system; testable via fakes. |
 | **Save format** | JSON | Human-readable, easy to debug during development. |
-| **Save format versioning** | `SaveGameData.CurrentVersion` integer (v2) | Enables explicit gating and migration when schema changes. |
+| **Save format versioning** | `SaveGameData.CurrentVersion` integer (v3) | Enables explicit gating and migration when schema changes. |
 | **Capture/restore pattern** | `SaveGameMapper` with deterministic capture/apply | Single source of truth for serialization logic. |
 | **Slot count** | 3 (slot 0 = auto-save, slots 1–2 = manual) | Simple multi-slot without full menu. |
 | **Atomic writes** | Write to `.tmp`, rename to final path | Prevents corruption on crash during save. |
@@ -12,7 +12,7 @@
 | **Dev hotkeys** | K = quick save (slot 1), L = quick load (slot 1) | Rapid iteration during development. |
 | **Save file location** | `%APPDATA%/DogDays/saves/slot_N.json` | Standard Windows user data location. |
 | **Load mechanism** | Screen replacement via `ScreenManager.Replace()` | Clean teardown — no mid-frame state mutation. |
-| **Restore scope** | Exact player position + zone + combat stats + quests + day/night + per-map watercraft state | Full gameplay state round-trip. |
+| **Restore scope** | Exact player position + zone + progression unlocks + combat stats + quests + day/night + per-map watercraft state | Full gameplay state round-trip. |
 
 ## Persisted State
 
@@ -20,6 +20,7 @@
 |---|---|---|
 | Player position, facing, zone | `SavePlayerData` | `SaveGameMapper` |
 | Quest status, objective index, progress | `SaveQuestStateData[]` | `SaveGameMapper` via `QuestState.RestoreState()` |
+| Progression unlock flags | `SavePlayerProgressionData` | `SaveGameMapper` + `GameSessionServices.Progression` |
 | Combat stats (level, XP, HP, multipliers) | `SaveCombatStatsData` | `SaveGameMapper` |
 | Day/night cycle progress | `SaveDayNightData` | `SaveGameMapper` |
 | Watercraft position, facing, occupied state by map | `SaveWatercraftData[]` | `SaveGameMapper` + `GameplayScreen` session restore |

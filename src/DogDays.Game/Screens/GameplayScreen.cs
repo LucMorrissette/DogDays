@@ -32,6 +32,7 @@ public sealed class GameplayScreen : IGameScreen
 {
     private const string MomNpcQuestTargetId = "mom";
     private const string GrandpaNpcQuestTargetId = "grandpa";
+    private const string GardenShedKeyRewardQuestId = "future-shed-key-reward";
     private const float FrontDoorInvitationTileScale = 0.0125f;
     private const int PlayerFramePixels = 32;
     private const float PlayerMoveSpeedPixelsPerSecond = 96f;
@@ -163,6 +164,7 @@ public sealed class GameplayScreen : IGameScreen
     private readonly string _spawnPointId;
     private readonly Vector2? _spawnPosition;
     private readonly bool _fadeInFromBlack;
+    private readonly SummerIntroStartState _summerIntroStartState;
     private readonly MapConfig _mapConfig;
 
     private SpriteBatch _worldSpriteBatch;
@@ -293,6 +295,7 @@ public sealed class GameplayScreen : IGameScreen
     private readonly IMusicManager _musicManager = new MusicManager();
     private Texture2D _hookIconTexture;
     private Texture2D _boardIconTexture;
+    private Texture2D _shedLockedIconTexture;
     private Texture2D _disembarkIconTexture;
     private bool _playerInFishingZone;
     private HudRenderer _hudRenderer;
@@ -313,6 +316,10 @@ public sealed class GameplayScreen : IGameScreen
     private const float DialogTickSfxVolume = 0.38f;
     private static readonly DialogScript FishingStartDialog =
         new(new DialogLine("Player", "Alright. Let's go fishing."));
+    private static readonly DialogScript FishingBlockedByShedDialog =
+        new(new DialogLine("Player", "Can't go fishing yet. The tackle gear is locked in the shed."));
+    private static readonly DialogScript WatercraftBlockedByShedDialog =
+        new(new DialogLine("Player", "Can't go canoeing yet. We need the oars and lifejackets from the shed."));
     private readonly SoundEffect[] _dialogTickSfx = new SoundEffect[DialogLetterTickSfxCount];
     private DialogSequence _dialogSequence;
     private DialogBoxRenderer _dialogBoxRenderer;
@@ -321,6 +328,11 @@ public sealed class GameplayScreen : IGameScreen
     private readonly QuestCompletionSequence _questCompletionSequence = new();
     private Texture2D _dialogBoxTexture;
     private bool _pendingFishingFromDialog;
+    private SummerIntroSequence _summerIntroSequence;
+    private MissingGnomeSequence _missingGnomeSequence;
+    private bool _companionUnlocked;
+    private bool _summerIntroExitReminderLatched;
+    private string? _blockedOutdoorExitQuestDiscoveryId;
 
     /// <inheritdoc />
     public bool IsTransparent => false;
@@ -343,6 +355,7 @@ public sealed class GameplayScreen : IGameScreen
     /// <param name="dayNightStartProgress">Starting cycle progress (0–1). Pass the previous zone's progress to preserve time across transitions.</param>
     /// <param name="spawnPosition">Exact world-space position to place the player at. Overrides spawnPointId when set.</param>
     /// <param name="saveDataToRestore">Optional save data to restore combat stats from after LoadContent.</param>
+    /// <param name="summerIntroStartState">Optional opener phase to begin after the screen loads.</param>
     internal GameplayScreen(
         GraphicsDevice graphicsDevice,
         ContentManager content,
@@ -356,7 +369,8 @@ public sealed class GameplayScreen : IGameScreen
         bool fadeInFromBlack = false,
         float dayNightStartProgress = DayNightCycleStartProgress,
         Vector2? spawnPosition = null,
-        SaveGameData saveDataToRestore = null)
+        SaveGameData saveDataToRestore = null,
+        SummerIntroStartState summerIntroStartState = SummerIntroStartState.None)
     {
         _graphicsDevice = graphicsDevice;
         _content = content;
@@ -372,6 +386,7 @@ public sealed class GameplayScreen : IGameScreen
         _mapConfig = MapConfig.ForMap(mapAssetName);
         _dayNightStartProgress = dayNightStartProgress;
         _pendingSaveRestore = saveDataToRestore;
+        _summerIntroStartState = summerIntroStartState;
     }
 
     /// <inheritdoc />
@@ -503,19 +518,46 @@ public sealed class GameplayScreen : IGameScreen
             new Point(PlayerFramePixels, PlayerFramePixels),
             new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight),
             _mapConfig.FollowerConfig);
+        _companionUnlocked = IsSummerIntroComplete();
+        if (!_companionUnlocked || _summerIntroStartState != SummerIntroStartState.None)
+        {
+            _summerIntroSequence = new SummerIntroSequence();
+        }
 
         if (_momSpriteSheet != null)
         {
             var navGraph = _worldRenderer.NavGraph;
             if (navGraph != null && navGraph.Nodes.Count >= 2)
             {
-                // Start Mom at a random nav node each time the player enters.
-                var startNode = navGraph.Nodes[_sfxRng.Next(navGraph.Nodes.Count)];
+                var holdMomForIntro = ShouldHoldMomForSummerIntro();
+                var startNode = navGraph.Nodes[0];
+                if (holdMomForIntro)
+                {
+                    for (var i = 0; i < navGraph.Nodes.Count; i++)
+                    {
+                        if (!string.Equals(navGraph.Nodes[i].Name, SummerIntroDefinition.MomHoldNavNodeName, StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+
+                        startNode = navGraph.Nodes[i];
+                        break;
+                    }
+                }
+                else
+                {
+                    startNode = navGraph.Nodes[_sfxRng.Next(navGraph.Nodes.Count)];
+                }
 
                 _momNpc = new MomNpc(
                     startNode.Position,
                     new Point(PlayerFramePixels, PlayerFramePixels),
                     navGraph);
+
+                if (holdMomForIntro && _momNpc is IScriptControllableNpc scriptControllableMom)
+                {
+                    scriptControllableMom.HoldForScriptedSequence(startNode.Position, FacingDirection.Down);
+                }
             }
         }
 
@@ -611,6 +653,7 @@ public sealed class GameplayScreen : IGameScreen
             _content.Load<Texture2D>("Sprites/garden-shed-closed"),
             _content.Load<Texture2D>("Sprites/garden-shed-open"),
             _worldRenderer.PropPlacements,
+            isLocked: !IsGardenShedUnlocked(),
             collisionHeightPixels: 32,
             targetWidthPixels: _worldRenderer.TileWidthPixels * GardenShedWidthTiles,
             collisionYOffset: -20);
@@ -618,13 +661,15 @@ public sealed class GameplayScreen : IGameScreen
         _smokeTexture = _content.Load<Texture2D>("Sprites/smoke-puff");
         _hookIconTexture = _content.Load<Texture2D>("Sprites/hook-icon");
         _boardIconTexture = _content.Load<Texture2D>("Sprites/board-icon");
+        _shedLockedIconTexture = _content.Load<Texture2D>("Sprites/shed-locked-icon");
         _disembarkIconTexture = _content.Load<Texture2D>("Sprites/disembark-icon");
         _particleManager = new ParticleManager(MaxParticleCount);
 
         if (_mapAssetName == "Maps/WoodsBehindCabin")
         {
+            var shouldEnableStarterWeapons = ShouldEnableForestStarterWeapons();
+
             _gnomeEnemyTexture = _content.Load<Texture2D>("Sprites/garden-gnome");
-            _projectileArrowTexture = _content.Load<Texture2D>("Sprites/projectile-arrow");
             _explosionTexture = _content.Load<Texture2D>("Sprites/explosion");
             _energyOrbTexture = _content.Load<Texture2D>("Sprites/energy-orb");
             _energyOrbRedTexture = _content.Load<Texture2D>("Sprites/energy-orb-red");
@@ -659,11 +704,6 @@ public sealed class GameplayScreen : IGameScreen
                 PerformAutoSave();
             };
             _gnomeSpawner = new GnomeSpawner(initialCount: 10, spawnIntervalSeconds: 0.15f, maxActive: 200);
-            _projectileSystem = new ProjectileSystem(
-                maxProjectiles: 32,
-                fireIntervalSeconds: 1.8f,
-                trailParticleManager: _particleManager,
-                trailParticleProfile: ArrowTrailSparkProfile);
             _waveManager = new WaveManager(_gnomeSpawner);
             _waveManager.OnWaveCleared += waveNum =>
             {
@@ -677,12 +717,22 @@ public sealed class GameplayScreen : IGameScreen
             _energyOrbSystem = new EnergyOrbSystem(MaxEnergyOrbs);
             _explosionSystem = new ExplosionSystem(MaxExplosions);
             _healthPickupSystem = new HealthPickupSystem(MaxHealthPickups, _sfxRng);
+
+            if (shouldEnableStarterWeapons)
+            {
+                _projectileArrowTexture = _content.Load<Texture2D>("Sprites/projectile-arrow");
+                _projectileSystem = new ProjectileSystem(
+                    maxProjectiles: 32,
+                    fireIntervalSeconds: 1.8f,
+                    trailParticleManager: _particleManager,
+                    trailParticleProfile: ArrowTrailSparkProfile);
+            }
         }
 
-        if (_mapAssetName == "Maps/WoodsBehindCabin")
+        if (_mapAssetName == "Maps/WoodsBehindCabin" && ShouldEnableForestStarterWeapons())
             _slashSystem = new SlashSystem();
 
-        if (_mapAssetName == "Maps/WoodsBehindCabin")
+        if (_mapAssetName == "Maps/WoodsBehindCabin" && ShouldEnableForestStarterWeapons())
             _hatchetTexture = _content.Load<Texture2D>("Sprites/hatchet");
 
         if (_gnomeSpawner != null)
@@ -871,6 +921,8 @@ public sealed class GameplayScreen : IGameScreen
             TickVolume = DialogTickSfxVolume
         };
         _dialogBoxRenderer = new DialogBoxRenderer(_dialogBoxTexture, _pixelTexture);
+        InitializeSummerIntroSequence();
+        StartPendingSummerIntroDialog();
 
         // Build flat occluder list for OcclusionRevealRenderer.CheckOcclusion().
         _occluders.Clear();
@@ -953,6 +1005,18 @@ public sealed class GameplayScreen : IGameScreen
             }
 
             UpdateWorldPresentation(gameTime, EmptyInput, animateCharacters: false);
+            return;
+        }
+
+        if (_summerIntroSequence?.IsActive ?? false)
+        {
+            UpdateSummerIntro(gameTime, input);
+            return;
+        }
+
+        if (_missingGnomeSequence?.IsActive ?? false)
+        {
+            UpdateMissingGnomeSequence(gameTime, input);
             return;
         }
 
@@ -1057,14 +1121,9 @@ public sealed class GameplayScreen : IGameScreen
         }
 
         // Check zone transition triggers after player movement.
-        for (var i = 0; i < _worldRenderer.ZoneTriggers.Count; i++)
+        if (HandleZoneTransitions())
         {
-            var trigger = _worldRenderer.ZoneTriggers[i];
-            if (_player.FootBounds.Intersects(trigger.Bounds))
-            {
-                BeginZoneTransition(trigger);
-                return;
-            }
+            return;
         }
 
         if (actionPressed && _dashRollSequence == null)
@@ -1092,11 +1151,18 @@ public sealed class GameplayScreen : IGameScreen
             TryToggleNearbyFirepit();
         }
 
-        _follower.Update(gameTime,
-            _followerSystem.GetLeaderTargetPosition(_player, _follower, _gnomeSpawner),
-            _player.Facing,
-            _followerSystem.GetRestPosition(_player, _follower, _collisionMap,
-                _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight));
+        if (_companionUnlocked)
+        {
+            _follower.Update(gameTime,
+                _followerSystem.GetLeaderTargetPosition(_player, _follower, _gnomeSpawner),
+                _player.Facing,
+                _followerSystem.GetRestPosition(_player, _follower, _collisionMap,
+                    _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight));
+        }
+        else
+        {
+            _follower.ClearMovementState();
+        }
         UpdateFrontDoors(gameTime);
         UpdateGardenShedDoors();
 
@@ -1131,20 +1197,30 @@ public sealed class GameplayScreen : IGameScreen
 
     private void UpdateWorldPresentation(GameTime gameTime, IInputManager input, bool animateCharacters)
     {
+        var companionVisible = IsCompanionVisible();
+        var passiveNpcShouldAnimate = animateCharacters && !(_summerIntroSequence?.IsActive ?? false);
         _playerAnimator.Direction = _player.Facing;
         var playerShouldAnimate = animateCharacters && _player.IsMoving && !(_dashRollSequence?.IsActive ?? false);
         _playerAnimator.Update(gameTime, playerShouldAnimate);
-        _followerAnimator.Direction = _follower.Facing;
-        _followerAnimator.Update(gameTime, animateCharacters && _follower.IsMoving);
+        if (companionVisible)
+        {
+            _followerAnimator.Direction = _follower.Facing;
+            _followerAnimator.Update(gameTime, animateCharacters && _follower.IsMoving);
+        }
+        else
+        {
+            _follower.ClearMovementState();
+            _followerAnimator.Update(gameTime, false);
+        }
         if (_momNpc != null && _momAnimator != null)
         {
             _momAnimator.Direction = _momNpc.Facing;
-            _momAnimator.Update(gameTime, animateCharacters && _momNpc.IsMoving);
+            _momAnimator.Update(gameTime, passiveNpcShouldAnimate && _momNpc.IsMoving);
         }
         if (_grandpaNpc != null && _grandpaAnimator != null)
         {
             _grandpaAnimator.Direction = _grandpaNpc.Facing;
-            _grandpaAnimator.Update(gameTime, animateCharacters && _grandpaNpc.IsMoving);
+            _grandpaAnimator.Update(gameTime, passiveNpcShouldAnimate && _grandpaNpc.IsMoving);
         }
         _camera.LookAt(_player.Center);
         _camera.UpdateShake((float)gameTime.ElapsedGameTime.TotalSeconds);
@@ -1158,7 +1234,7 @@ public sealed class GameplayScreen : IGameScreen
             _occluders,
             _worldRenderer.MapPixelHeight,
             _worldRenderer.MapPixelWidth);
-        _isFollowerOccluded = OcclusionRevealRenderer.CheckOcclusion(
+        _isFollowerOccluded = companionVisible && OcclusionRevealRenderer.CheckOcclusion(
             _follower.Bounds,
             SortDepth(_follower.Bounds, _worldRenderer.MapPixelHeight, _worldRenderer.MapPixelWidth),
             _occluders,
@@ -1227,6 +1303,11 @@ public sealed class GameplayScreen : IGameScreen
             if (_momObstacleIndex >= 0)
                 _collisionMap.UpdateDynamicObstacle(_momObstacleIndex, Rectangle.Empty);
 
+            if (_momNpc is IScriptControllableNpc scriptControllableMom)
+            {
+                scriptControllableMom.SetAutonomousBehaviorEnabled(!ShouldHoldMomForSummerIntro());
+            }
+
             _momNpc.Update(gameTime, _collisionMap);
 
             if (_momObstacleIndex >= 0)
@@ -1290,10 +1371,13 @@ public sealed class GameplayScreen : IGameScreen
     {
         var anyOpened = false;
         var anyClosed = false;
+        var anyLocked = false;
         var playerFootBounds = _player.FootBounds;
+        var isShedUnlocked = IsGardenShedUnlocked();
 
         for (var i = 0; i < _gardenSheds.Length; i++)
         {
+            _gardenSheds[i].SetLocked(!isShedUnlocked);
             var wasOpen = _gardenSheds[i].IsDoorOpen;
             _gardenSheds[i].UpdateDoorState(playerFootBounds);
             if (!wasOpen && _gardenSheds[i].IsDoorOpen)
@@ -1304,6 +1388,13 @@ public sealed class GameplayScreen : IGameScreen
             {
                 anyClosed = true;
             }
+
+            anyLocked |= _gardenSheds[i].ConsumeLockedFeedbackRequest();
+        }
+
+        if (anyLocked)
+        {
+            _doorLockedSfx.Play(DoorLockedSfxVolume, 0f, 0f);
         }
 
         if (anyOpened)
@@ -1451,8 +1542,9 @@ public sealed class GameplayScreen : IGameScreen
         }
         var playerTint = GetPlayerHitTint();
 
-        var followerDepth = SortDepth(_follower.Bounds, mapHeight, mapWidth);
-        var anyOccluded = _isPlayerOccluded || _isFollowerOccluded;
+        var companionVisible = IsCompanionVisible();
+        var followerDepth = companionVisible ? SortDepth(_follower.Bounds, mapHeight, mapWidth) : playerDepth;
+        var anyOccluded = _isPlayerOccluded || (companionVisible && _isFollowerOccluded);
 
         var hasScriptedCharacterSequence = _couchSitSequence.IsActive || _watercraftBoardSequence.IsActive;
 
@@ -1654,7 +1746,41 @@ public sealed class GameplayScreen : IGameScreen
             spriteBatch.End();
         }
 
-        if (!_watercraftBoardSequence.IsActive && TryGetNearbyBoardableWatercraft(out var watercraft))
+        if (TryGetNearbyLockedGardenShed(out var lockedShed))
+        {
+            var shedScreenTop = Vector2.Transform(lockedShed.Position, _camera.GetViewMatrix());
+            var gameViewport = _graphicsDevice.Viewport;
+            var scaledSceneWidth = _virtualWidth * sceneScale;
+            var scaledSceneHeight = _virtualHeight * sceneScale;
+            var sceneOffsetX = (gameViewport.Width - scaledSceneWidth) / 2;
+            var sceneOffsetY = (gameViewport.Height - scaledSceneHeight) / 2;
+            var shedWindowTop = new Vector2(
+                sceneOffsetX + shedScreenTop.X * sceneScale,
+                sceneOffsetY + shedScreenTop.Y * sceneScale);
+            var scaledIconWidth = _shedLockedIconTexture.Width * FishingPromptUiScale;
+            var scaledIconHeight = _shedLockedIconTexture.Height * FishingPromptUiScale;
+            var shedScreenWidth = lockedShed.Bounds.Width * sceneScale;
+            var iconX = shedWindowTop.X + shedScreenWidth * 0.5f - scaledIconWidth * 0.5f;
+            var iconY = shedWindowTop.Y - scaledIconHeight + FishingPromptHeadGapPixels;
+
+            spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp);
+            spriteBatch.Draw(
+                _shedLockedIconTexture,
+                new Vector2(iconX, iconY),
+                null,
+                Color.White,
+                0f,
+                Vector2.Zero,
+                FishingPromptUiScale,
+                SpriteEffects.None,
+                0f);
+            spriteBatch.End();
+        }
+
+        if (!_watercraftBoardSequence.IsActive && _companionUnlocked && TryGetNearbyBoardableWatercraft(out var watercraft))
         {
             var watercraftScreenTop = Vector2.Transform(watercraft.Position, _camera.GetViewMatrix());
             var gameViewport = _graphicsDevice.Viewport;
@@ -1918,6 +2044,12 @@ public sealed class GameplayScreen : IGameScreen
 
     private void OnQuestCompleted(QuestState questState)
     {
+        if (string.Equals(questState.Definition.Id, SummerIntroDefinition.QuestId, StringComparison.Ordinal))
+        {
+            _companionUnlocked = true;
+            RecreateFollowerAtCurrentPosition();
+        }
+
         _questCompletionSequence.Enqueue(questState.Definition);
         _questCompleteCueSfx.Play(QuestCompleteCueSfxVolume, 0f, 0f);
         PerformAutoSave();
@@ -2257,6 +2389,289 @@ public sealed class GameplayScreen : IGameScreen
         return null;
     }
 
+    private void InitializeSummerIntroSequence()
+    {
+        if (_summerIntroSequence == null)
+        {
+            return;
+        }
+
+        if (_summerIntroStartState != SummerIntroStartState.BedroomReturn)
+        {
+            return;
+        }
+
+        var halfFrame = new Vector2(PlayerFramePixels / 2f, PlayerFramePixels / 2f);
+        var bedroomCenterFallback = new Vector2(
+            (_worldRenderer.MapPixelWidth - PlayerFramePixels) / 2f,
+            (_worldRenderer.MapPixelHeight - PlayerFramePixels) / 2f + 4f);
+        var playerFallbackPosition = bedroomCenterFallback + new Vector2(-16f, 12f);
+        var companionFallbackPosition = bedroomCenterFallback + new Vector2(16f, 0f);
+
+        ScriptedPositionResolver.ApplyPose(
+            _player,
+            SummerIntroDefinition.BedroomPlayerPose,
+            _worldRenderer.SpawnPoints,
+            playerFallbackPosition,
+            halfFrame);
+        ScriptedPositionResolver.ApplyPose(
+            _follower,
+            SummerIntroDefinition.BedroomCompanionPose,
+            _worldRenderer.SpawnPoints,
+            companionFallbackPosition,
+            halfFrame);
+        _summerIntroSequence.BeginBedroomReturn();
+    }
+
+    private bool IsSummerIntroComplete()
+    {
+        return _gameSessionServices.Quests.GetQuest(SummerIntroDefinition.QuestId)?.Status == QuestStatus.Completed;
+    }
+
+    private bool IsCompanionVisible()
+    {
+        return _companionUnlocked || (_summerIntroSequence?.CompanionShouldBeVisible ?? false);
+    }
+
+    private bool IsMissingGnomeQuestPending()
+    {
+        return _gameSessionServices.Quests.GetQuest(MissingGnomeDefinition.QuestId)?.Status == QuestStatus.NotStarted;
+    }
+
+    private bool ShouldHoldMomForSummerIntro()
+    {
+        return string.Equals(_mapAssetName, "Maps/CabinIndoors", StringComparison.Ordinal)
+            && !IsSummerIntroComplete();
+    }
+
+    private bool CanStartSummerIntroConversation()
+    {
+        return _summerIntroSequence != null
+            && !_companionUnlocked
+            && _summerIntroStartState == SummerIntroStartState.None
+            && string.Equals(_mapAssetName, "Maps/CabinIndoors", StringComparison.Ordinal)
+            && _gameSessionServices.Quests.GetQuest(SummerIntroDefinition.QuestId)?.Status == QuestStatus.Active;
+    }
+
+    private void BeginSummerIntroFromMom()
+    {
+        if (_summerIntroSequence == null)
+        {
+            return;
+        }
+
+        var halfFrame = new Vector2(PlayerFramePixels / 2f, PlayerFramePixels / 2f);
+        var companionDoorFallbackAnchor = _player.Position + SummerIntroDefinition.CompanionDoorFallbackOffsetFromPlayer;
+        var bedroomDoorFallbackAnchor = _player.Position + SummerIntroDefinition.BedroomDoorFallbackOffsetFromPlayer;
+        var companionTarget = ScriptedPositionResolver.ResolveTopLeftPosition(
+            _worldRenderer.SpawnPoints,
+            SummerIntroDefinition.CompanionEntranceTarget,
+            companionDoorFallbackAnchor,
+            halfFrame);
+        var playerDoorTarget = ScriptedPositionResolver.ResolveTopLeftPosition(
+            _worldRenderer.SpawnPoints,
+            SummerIntroDefinition.PlayerBedroomDoorTarget,
+            bedroomDoorFallbackAnchor,
+            halfFrame);
+        var companionDoorTarget = ScriptedPositionResolver.ResolveTopLeftPosition(
+            _worldRenderer.SpawnPoints,
+            SummerIntroDefinition.CompanionBedroomDoorTarget,
+            bedroomDoorFallbackAnchor,
+            halfFrame);
+
+        ScriptedPositionResolver.ApplyPose(
+            _follower,
+            SummerIntroDefinition.CompanionEntranceStartPose,
+            _worldRenderer.SpawnPoints,
+            companionDoorFallbackAnchor,
+            halfFrame);
+        FacePlayerToward(_momNpc?.Center ?? _player.Center);
+        _summerIntroSequence.BeginMomConversation(companionTarget, playerDoorTarget, companionDoorTarget);
+        StartPendingSummerIntroDialog();
+    }
+
+    private void UpdateSummerIntro(GameTime gameTime, IInputManager input)
+    {
+        if (_summerIntroSequence == null)
+        {
+            UpdateWorldPresentation(gameTime, EmptyInput, animateCharacters: false);
+            return;
+        }
+
+        if (_dialogSequence != null && _dialogSequence.IsActive)
+        {
+            _dialogSequence.Update(gameTime, input);
+            if (!_dialogSequence.IsActive)
+            {
+                _summerIntroSequence.NotifyDialogDismissed();
+            }
+        }
+        else
+        {
+            _summerIntroSequence.Update(gameTime, _player, _follower);
+        }
+
+        StartPendingSummerIntroDialog();
+
+        if (_summerIntroSequence.ConsumePendingTransition() is { } transition)
+        {
+            _screenManager.Replace(new GameplayScreen(
+                _graphicsDevice,
+                _content,
+                _virtualWidth,
+                _virtualHeight,
+                _screenManager,
+                _gameSessionServices,
+                _requestExit,
+                transition.MapAssetName,
+                transition.SpawnPointId,
+                fadeInFromBlack: true,
+                dayNightStartProgress: _dayNightCycle?.CycleProgress ?? DayNightCycleStartProgress,
+                summerIntroStartState: transition.StartState));
+            return;
+        }
+
+        if (_summerIntroSequence.ConsumeCompletionRequested())
+        {
+            _gameSessionServices.EventBus.Publish(GameEventType.StoryBeatReached, SummerIntroDefinition.CompletionStoryBeatId, 1);
+            _summerIntroSequence = null;
+        }
+
+        var animateCharacters = !(_dialogSequence?.IsActive ?? false);
+        UpdateWorldPresentation(gameTime, EmptyInput, animateCharacters);
+    }
+
+    private void BeginMissingGnomeSequenceFromExitTrigger()
+    {
+        if (_momNpc is not IScriptControllableNpc scriptControllableMom)
+        {
+            return;
+        }
+
+        var halfFrame = new Vector2(PlayerFramePixels / 2f, PlayerFramePixels / 2f);
+        var momFallbackAnchor = _player.Position + MissingGnomeDefinition.MomDoorFallbackOffsetFromPlayer;
+        var momTargetPosition = ScriptedPositionResolver.ResolveTopLeftPosition(
+            _worldRenderer.SpawnPoints,
+            MissingGnomeDefinition.MomDoorApproachPose.Position,
+            momFallbackAnchor,
+            halfFrame);
+        var momRoute = ScriptedNpcRoute.Create(
+            _worldRenderer.NavGraph,
+            scriptControllableMom,
+            MissingGnomeDefinition.MomApproachDestinationNodeName);
+
+        scriptControllableMom.SetAutonomousBehaviorEnabled(false);
+        _missingGnomeSequence = new MissingGnomeSequence();
+        _missingGnomeSequence.Begin(momTargetPosition, momRoute);
+    }
+
+    private void UpdateMissingGnomeSequence(GameTime gameTime, IInputManager input)
+    {
+        if (_missingGnomeSequence == null || _momNpc is not IScriptControllableNpc scriptControllableMom)
+        {
+            UpdateWorldPresentation(gameTime, EmptyInput, animateCharacters: false);
+            return;
+        }
+
+        if (_dialogSequence != null && _dialogSequence.IsActive)
+        {
+            _dialogSequence.Update(gameTime, input);
+            if (!_dialogSequence.IsActive)
+            {
+                _missingGnomeSequence.NotifyDialogDismissed();
+            }
+        }
+        else
+        {
+            if (_momObstacleIndex >= 0)
+            {
+                _collisionMap.UpdateDynamicObstacle(_momObstacleIndex, Rectangle.Empty);
+            }
+
+            _missingGnomeSequence.Update(gameTime, scriptControllableMom, _player, _follower, _collisionMap);
+
+            if (_momObstacleIndex >= 0)
+            {
+                _collisionMap.UpdateDynamicObstacle(_momObstacleIndex, _momNpc.FootBounds);
+            }
+        }
+
+        StartPendingMissingGnomeDialog();
+
+        if (_missingGnomeSequence.ConsumeCompletionRequested())
+        {
+            scriptControllableMom.SetAutonomousBehaviorEnabled(true);
+            _blockedOutdoorExitQuestDiscoveryId = MissingGnomeDefinition.QuestId;
+            _gameSessionServices.EventBus.Publish(GameEventType.StoryBeatReached, MissingGnomeDefinition.QuestUnlockedStoryBeatId, 1);
+            _missingGnomeSequence = null;
+        }
+
+        var animateCharacters = !(_dialogSequence?.IsActive ?? false);
+        UpdateWorldPresentation(gameTime, EmptyInput, animateCharacters);
+    }
+
+    private void StartPendingMissingGnomeDialog()
+    {
+        if (_dialogSequence == null || _dialogSequence.IsActive || _missingGnomeSequence == null)
+        {
+            return;
+        }
+
+        var dialog = _missingGnomeSequence.ConsumePendingDialog();
+        if (dialog is null)
+        {
+            return;
+        }
+
+        _dialogSequence.Begin(dialog);
+    }
+
+    private void StartPendingSummerIntroDialog()
+    {
+        if (_dialogSequence == null || _dialogSequence.IsActive || _summerIntroSequence == null)
+        {
+            return;
+        }
+
+        var dialog = _summerIntroSequence.ConsumePendingDialog();
+        if (dialog is null)
+        {
+            return;
+        }
+
+        _dialogSequence.Begin(dialog);
+    }
+
+    private void FacePlayerToward(Vector2 targetWorldPosition)
+    {
+        var direction = targetWorldPosition - _player.Center;
+        if (direction.LengthSquared() <= 0f)
+        {
+            return;
+        }
+
+        if (MathF.Abs(direction.X) >= MathF.Abs(direction.Y))
+        {
+            _player.SetFacing(direction.X >= 0f ? FacingDirection.Right : FacingDirection.Left);
+        }
+        else
+        {
+            _player.SetFacing(direction.Y >= 0f ? FacingDirection.Down : FacingDirection.Up);
+        }
+    }
+
+    private void RecreateFollowerAtCurrentPosition()
+    {
+        var followerPosition = _follower.Position;
+        var followerFacing = _follower.Facing;
+        _follower = new FollowerBlock(
+            followerPosition,
+            new Point(PlayerFramePixels, PlayerFramePixels),
+            new Rectangle(0, 0, _worldRenderer.MapPixelWidth, _worldRenderer.MapPixelHeight),
+            _mapConfig.FollowerConfig);
+        _follower.SetFacing(followerFacing);
+    }
+
     private void TryToggleNearbyFirepit()
     {
         var nearestIndex = -1;
@@ -2289,6 +2704,11 @@ public sealed class GameplayScreen : IGameScreen
 
     private bool TrySitOnCouch()
     {
+        if (!_companionUnlocked)
+        {
+            return false;
+        }
+
         var playerFootBounds = _player.FootBounds;
         var playerFacing = _player.Facing;
         var playerCenter = new Vector2(playerFootBounds.Center.X, playerFootBounds.Center.Y);
@@ -2323,9 +2743,20 @@ public sealed class GameplayScreen : IGameScreen
 
     private bool TryHopIntoWatercraft()
     {
+        if (!_companionUnlocked)
+        {
+            return false;
+        }
+
         if (!TryGetNearbyBoardableWatercraft(out var watercraft))
         {
             return false;
+        }
+
+        if (!IsGardenShedUnlocked())
+        {
+            BeginBlockingDialog(WatercraftBlockedByShedDialog);
+            return true;
         }
 
         _watercraftBoardSequence.Begin(watercraft, _player, _follower);
@@ -2373,6 +2804,40 @@ public sealed class GameplayScreen : IGameScreen
         }
 
         watercraft = _watercraftProps[nearestIndex];
+        return true;
+    }
+
+    private bool TryGetNearbyLockedGardenShed(out GardenShed shed)
+    {
+        var playerFootBounds = _player.FootBounds;
+        var playerCenter = _player.Center;
+
+        var nearestIndex = -1;
+        var nearestDistanceSquared = float.MaxValue;
+
+        for (var i = 0; i < _gardenSheds.Length; i++)
+        {
+            if (!_gardenSheds[i].IsLocked || !playerFootBounds.Intersects(_gardenSheds[i].RampBounds))
+            {
+                continue;
+            }
+
+            var shedCenter = new Vector2(_gardenSheds[i].Bounds.Center.X, _gardenSheds[i].Bounds.Center.Y);
+            var distanceSquared = Vector2.DistanceSquared(playerCenter, shedCenter);
+            if (distanceSquared < nearestDistanceSquared)
+            {
+                nearestDistanceSquared = distanceSquared;
+                nearestIndex = i;
+            }
+        }
+
+        if (nearestIndex < 0)
+        {
+            shed = null!;
+            return false;
+        }
+
+        shed = _gardenSheds[nearestIndex];
         return true;
     }
 
@@ -2547,7 +3012,15 @@ public sealed class GameplayScreen : IGameScreen
         if (_momNpc != null && playerFootBounds.Intersects(_momNpc.InteractionBounds))
         {
             _momNpc.FaceToward(playerCenter);
-            _dialogSequence.Begin(_momNpc.GetDialog());
+            if (CanStartSummerIntroConversation())
+            {
+                BeginSummerIntroFromMom();
+            }
+            else
+            {
+                _dialogSequence.Begin(_momNpc.GetDialog());
+            }
+
             _gameSessionServices.EventBus.Publish(GameEventType.NpcTalkedTo, MomNpcQuestTargetId, 1);
             return true;
         }
@@ -2555,12 +3028,18 @@ public sealed class GameplayScreen : IGameScreen
         if (_grandpaNpc != null && playerFootBounds.Intersects(_grandpaNpc.InteractionBounds))
         {
             _grandpaNpc.FaceToward(playerCenter);
-            _dialogSequence.Begin(_grandpaNpc.GetDialog());
+            _dialogSequence.Begin(GetGrandpaDialog(_grandpaNpc));
             _gameSessionServices.EventBus.Publish(GameEventType.NpcTalkedTo, GrandpaNpcQuestTargetId, 1);
             return true;
         }
 
         return false;
+    }
+
+    private DialogScript GetGrandpaDialog(GrandpaNpc grandpaNpc)
+    {
+        return _gameSessionServices.Quests.ResolveMainQuestNpcDialog(GrandpaNpcQuestTargetId)
+            ?? grandpaNpc.GetDialog();
     }
 
     private bool TryStartFishing()
@@ -2573,6 +3052,12 @@ public sealed class GameplayScreen : IGameScreen
             var zone = _worldRenderer.FishingZones[i];
             if (fishingBounds.Intersects(zone.Bounds) && playerFacing == zone.FacingDirection)
             {
+                if (!IsGardenShedUnlocked())
+                {
+                    BeginBlockingDialog(FishingBlockedByShedDialog);
+                    return true;
+                }
+
                 if (_dialogSequence != null)
                 {
                     _dialogSequence.Begin(FishingStartDialog);
@@ -2588,6 +3073,23 @@ public sealed class GameplayScreen : IGameScreen
         }
 
         return false;
+    }
+
+    private bool IsGardenShedUnlocked()
+    {
+        return _gameSessionServices.Quests.GetQuest(GardenShedKeyRewardQuestId)?.Status == QuestStatus.Completed;
+    }
+
+    private void BeginBlockingDialog(DialogScript dialog)
+    {
+        if (_dialogSequence == null || _dialogSequence.IsActive)
+        {
+            return;
+        }
+
+        _player.ClearMovementState();
+        _follower.ClearMovementState();
+        _dialogSequence.Begin(dialog);
     }
 
     private bool IsPlayerInFishingZone()
@@ -2639,6 +3141,70 @@ public sealed class GameplayScreen : IGameScreen
         _pendingFishingTransition = true;
         _fadeState = FadeState.FadingOut;
         _fadeAlpha = 0f;
+    }
+
+    private bool HandleZoneTransitions()
+    {
+        for (var i = 0; i < _worldRenderer.ZoneTriggers.Count; i++)
+        {
+            var trigger = _worldRenderer.ZoneTriggers[i];
+            if (!_player.FootBounds.Intersects(trigger.Bounds))
+            {
+                continue;
+            }
+
+            if (SummerIntroDefinition.ShouldBlockOutdoorExit(_mapAssetName, IsSummerIntroComplete(), trigger))
+            {
+                if (!_summerIntroExitReminderLatched && _dialogSequence != null && !_dialogSequence.IsActive)
+                {
+                    _player.ClearMovementState();
+                    _dialogSequence.Begin(SummerIntroDefinition.ExitBlockedDialog);
+                }
+
+                _summerIntroExitReminderLatched = true;
+                return true;
+            }
+
+            if (MissingGnomeDefinition.ShouldTriggerExitSequence(
+                    _mapAssetName,
+                    _gameSessionServices.Quests.GetQuest(MissingGnomeDefinition.QuestId),
+                    trigger))
+            {
+                BeginMissingGnomeSequenceFromExitTrigger();
+                return true;
+            }
+
+            if (ShouldBlockOutdoorExitForQuestDiscovery(trigger))
+            {
+                return true;
+            }
+
+            _summerIntroExitReminderLatched = false;
+            BeginZoneTransition(trigger);
+            return true;
+        }
+
+        _summerIntroExitReminderLatched = false;
+        return false;
+    }
+
+    private bool ShouldBlockOutdoorExitForQuestDiscovery(ZoneTriggerData trigger)
+    {
+        if (_blockedOutdoorExitQuestDiscoveryId is null
+            || !MissingGnomeDefinition.IsOutdoorExitTrigger(_mapAssetName, trigger))
+        {
+            return false;
+        }
+
+        if (_questDiscoverySequence.HasActiveOrPendingQuest(_blockedOutdoorExitQuestDiscoveryId))
+        {
+            _player.ClearMovementState();
+            _follower.ClearMovementState();
+            return true;
+        }
+
+        _blockedOutdoorExitQuestDiscoveryId = null;
+        return false;
     }
 
     private enum FadeState
@@ -2898,7 +3464,11 @@ public sealed class GameplayScreen : IGameScreen
 
     private void DrawActiveCharacters(float playerDepth, float followerDepth, Color? playerTint)
     {
-        _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, followerDepth);
+        if (IsCompanionVisible())
+        {
+            _follower.Draw(_worldSpriteBatch, _followerAnimator, _followerSpriteSheet, followerDepth);
+        }
+
         var mapHeight = (float)_worldRenderer.MapPixelHeight;
         var mapWidth = (float)_worldRenderer.MapPixelWidth;
         DrawMomNpc(mapHeight, mapWidth);
@@ -3004,6 +3574,12 @@ public sealed class GameplayScreen : IGameScreen
         return Color.Lerp(Color.White, new Color(255, 60, 60), t);
     }
 
+    private bool ShouldEnableForestStarterWeapons()
+    {
+        return _mapConfig.AutoEnableStarterWeapons
+            || _gameSessionServices.Progression.HasForestStarterWeapons;
+    }
+
     // ── Save / Load ──────────────────────────────────────────────────────
 
     private const int AutoSaveSlot = 0;
@@ -3028,6 +3604,7 @@ public sealed class GameplayScreen : IGameScreen
             _player.Facing,
             _mapAssetName,
             _gameSessionServices.Quests,
+            _gameSessionServices.Progression,
             _combatStats,
             _dayNightCycle?.CycleProgress ?? DayNightCycleStartProgress,
             CaptureAllWatercraftStatesForSave());
@@ -3053,6 +3630,7 @@ public sealed class GameplayScreen : IGameScreen
         // Restore quest state into the existing manager before rebuilding the screen.
         SaveGameMapper.RestoreQuests(data, _gameSessionServices.Quests);
         _gameSessionServices.Quests.RebuildListsFromRestoredState();
+        SaveGameMapper.RestoreProgression(data, _gameSessionServices);
 
         var savedPlayer = data.Player;
         var savedPosition = new Vector2(savedPlayer.X, savedPlayer.Y);

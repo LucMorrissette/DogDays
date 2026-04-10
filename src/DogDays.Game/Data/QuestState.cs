@@ -55,6 +55,16 @@ internal sealed class QuestState
     }
 
     /// <summary>
+    /// Resets the quest back to its not-started state and clears all objective progress.
+    /// </summary>
+    internal void ResetProgress()
+    {
+        Array.Clear(_objectiveProgress);
+        CurrentObjectiveIndex = 0;
+        Status = QuestStatus.NotStarted;
+    }
+
+    /// <summary>
     /// Restores saved state (status, objective index, and progress counters).
     /// Used by the save mapper during load. Bypasses normal event-driven progression.
     /// </summary>
